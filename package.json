@@ -1,0 +1,10 @@
+{
+  "name": "vehicle-diagnostics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "מערכת דיאגנוסטיקה לרכבים — Vehicle Diagnostics App",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  }
+}

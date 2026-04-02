@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מערכת דיאגנוסטיקה לרכבים</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --pri:#2563eb;--pri-d:#1d4ed8;--pri-l:#dbeafe;
+  --red:#dc2626;--red-l:#fee2e2;--org:#f97316;
+  --yel:#f59e0b;--yel-l:#fef3c7;
+  --grn:#16a34a;--grn-l:#dcfce7;
+  --g50:#f9fafb;--g100:#f3f4f6;--g200:#e5e7eb;--g300:#d1d5db;
+  --g400:#9ca3af;--g500:#6b7280;--g600:#4b5563;--g700:#374151;--g800:#1f2937;
+  --r:12px;--sh:0 1px 3px rgba(0,0,0,.1);--sh2:0 10px 15px -3px rgba(0,0,0,.1);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--g50);color:var(--g800);min-height:100vh}
+.app{max-width:900px;margin:0 auto;padding:20px}
+.hdr{background:linear-gradient(135deg,var(--pri),var(--pri-d));color:#fff;padding:24px 32px;border-radius:var(--r);margin-bottom:24px;text-align:center}
+.hdr h1{font-size:1.8rem;margin-bottom:6px}.hdr p{opacity:.85;font-size:.95rem}
+.steps{display:flex;justify-content:center;gap:4px;margin-bottom:24px;direction:ltr}
+.sd{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;background:var(--g200);color:var(--g500);transition:.3s}
+.sd.on{background:var(--pri);color:#fff;box-shadow:0 0 0 4px var(--pri-l)}.sd.done{background:var(--grn);color:#fff}
+.sc{width:36px;height:2px;background:var(--g200);align-self:center}.sc.done{background:var(--grn)}
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:28px;margin-bottom:20px}
+.ct{font-size:1.15rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tab{padding:10px 20px;border:2px solid var(--g200);border-radius:8px;background:#fff;cursor:pointer;font-weight:600;font-size:.9rem;transition:.2s}
+.tab.on{background:var(--pri);color:#fff;border-color:var(--pri)}.tab:hover:not(.on){border-color:var(--pri);color:var(--pri)}
+label{display:block;font-weight:600;margin-bottom:6px;font-size:.9rem;color:var(--g600)}
+input,select{width:100%;padding:10px 14px;border:1.5px solid var(--g300);border-radius:8px;font-size:1rem;font-family:inherit;transition:.2s;background:#fff}
+input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-l)}
+.row{display:flex;gap:12px}.row>*{flex:1}
+.btn{padding:12px 24px;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:.2s;font-family:inherit}
+.btn-p{background:var(--pri);color:#fff}.btn-p:hover{background:var(--pri-d)}.btn-p:disabled{background:var(--g300);cursor:not-allowed}
+.btn-s{background:var(--g100);color:var(--g700);border:1.5px solid var(--g300)}.btn-s:hover{background:var(--g200)}
+.btns{display:flex;gap:12px;margin-top:20px}
+.pi input{font-size:1.4rem;text-align:center;letter-spacing:2px;font-weight:700;direction:ltr;padding:12px}
+.piw{display:flex;gap:12px;align-items:flex-end}
+.pr{padding:16px;background:var(--pri-l);border-radius:8px;margin-top:12px}.pr .f{display:flex;gap:8px;padding:3px 0}.pr .fl{font-weight:600;color:var(--g600);min-width:100px}
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
+.sc2{padding:16px;border:2px solid var(--g200);border-radius:10px;text-align:center;cursor:pointer;transition:.2s}
+.sc2:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:var(--sh)}.sc2.sel{border-color:var(--pri);background:var(--pri-l)}
+.sc2 .ic{font-size:2rem;margin-bottom:4px}.sc2 .nm{font-weight:600;font-size:.85rem}.sc2 .cn{font-size:.75rem;color:var(--g500);margin-top:3px}
+.il{display:flex;flex-direction:column;gap:8px}
+.ii{padding:14px 16px;border:1.5px solid var(--g200);border-radius:8px;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:12px}
+.ii:hover{border-color:var(--pri);background:var(--g50)}.ii.sel{border-color:var(--pri);background:var(--pri-l)}
+.in{width:28px;height:28px;border-radius:50%;background:var(--g200);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;flex-shrink:0}
+.ii.sel .in{background:var(--pri);color:#fff}
+.sq{background:var(--yel-l);border:2px solid var(--yel);border-radius:10px;padding:18px;font-weight:600;font-size:1.05rem;text-align:center;margin:16px 0}
+.sb{display:flex;gap:16px;margin-top:12px}
+.sb>div{flex:1}
+.sby,.sbn{width:100%;padding:12px;border:2px solid var(--g200);border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;transition:.2s;background:#fff}
+.sby{color:var(--grn);border-color:var(--grn-l)}.sby:hover{background:var(--grn);color:#fff}
+.sbn{color:var(--red);border-color:var(--red-l)}.sbn:hover{background:var(--red);color:#fff}
+.dc{border-radius:var(--r);padding:24px;margin-top:16px}
+.dc.critical{background:#fef2f2;border:2px solid var(--red)}.dc.high{background:#fff7ed;border:2px solid var(--org)}
+.dc.medium{background:var(--yel-l);border:2px solid var(--yel)}.dc.low{background:var(--grn-l);border:2px solid var(--grn)}
+.dt{font-size:1.1rem;font-weight:700;margin-bottom:12px}
+.ds{margin-bottom:12px}.ds h4{font-size:.85rem;color:var(--g500);margin-bottom:4px}
+.ub{display:inline-block;padding:4px 12px;border-radius:20px;font-size:.8rem;font-weight:700}
+.ub.critical{background:var(--red);color:#fff}.ub.high{background:var(--org);color:#fff}
+.ub.medium{background:var(--yel);color:#fff}.ub.low{background:var(--grn);color:#fff}
+.pl{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.pt{background:#fff;border:1px solid var(--g300);padding:4px 10px;border-radius:20px;font-size:.85rem}
+.acw{position:relative}.acl{position:absolute;top:100%;right:0;left:0;background:#fff;border:1.5px solid var(--g300);border-top:none;border-radius:0 0 8px 8px;max-height:250px;overflow-y:auto;z-index:100;box-shadow:var(--sh2)}
+.aci{padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px}.aci:hover{background:var(--g50)}
+.aci .sb2{font-size:.75rem;background:var(--pri-l);color:var(--pri);padding:2px 8px;border-radius:4px}
+.alert{padding:14px 18px;border-radius:8px;margin-bottom:16px;font-size:.95rem}
+.alert-e{background:var(--red-l);color:var(--red);border:1px solid var(--red)}
+.alert-i{background:var(--pri-l);color:var(--pri)}.alert-s{background:var(--grn-l);color:var(--grn)}
+.ld{text-align:center;padding:40px;color:var(--g500)}
+.spin{display:inline-block;width:32px;height:32px;border:3px solid var(--g200);border-top-color:var(--pri);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.crumb{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cb{padding:4px 10px;background:var(--g100);border-radius:6px;font-size:.8rem;display:flex;align-items:center;gap:4px}
+.cb .a{font-weight:700}.cb .a.y{color:var(--grn)}.cb .a.n{color:var(--red)}
+.cr{display:flex;align-items:center;gap:8px;margin-top:4px}
+.crb{flex:1;height:8px;background:var(--g200);border-radius:4px;overflow:hidden}
+.crf{height:100%;background:linear-gradient(90deg,var(--grn),var(--yel),var(--red));border-radius:4px}
+.smr{margin-top:24px;padding:20px;background:var(--g50);border-radius:10px;border:1px solid var(--g200)}
+.smr td{padding:6px 0}.smr .lbl{font-weight:600;width:120px}
+.hid{display:none!important}
+.fi{animation:fi .3s ease}@keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:640px){.row{flex-direction:column}.sg{grid-template-columns:repeat(2,1fr)}.sb{flex-direction:column}.steps{gap:2px}.sd{width:36px;height:36px;font-size:.8rem}.sc{width:20px}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="hdr">
+    <h1>מערכת דיאגנוסטיקה לרכבים</h1>
+    <p>זיהוי תקלות, אבחון מונחה ופתרונות מקצועיים</p>
+  </div>
+  <div class="steps" id="steps-bar"></div>
+
+  <!-- Step 1 -->
+  <div id="step-1" class="card fi">
+    <div class="ct">שלב 1 — זיהוי רכב</div>
+    <div class="tabs">
+      <div class="tab on" onclick="switchMode('plate')">לוחית רישוי</div>
+      <div class="tab" onclick="switchMode('manual')">הזנה ידנית</div>
+    </div>
+    <div id="plate-mode">
+      <label>מספר רישוי</label>
+      <div class="piw">
+        <div class="pi" style="flex:1"><input type="text" id="plate-num" placeholder="12-345-67" maxlength="10" oninput="fmtPlate(this)" onkeydown="if(event.key==='Enter')lookupPlate()"></div>
+        <button class="btn btn-p" onclick="lookupPlate()" id="btn-lu">חפש</button>
+      </div>
+      <div id="plate-res" class="hid"></div>
+    </div>
+    <div id="manual-mode" class="hid">
+      <div class="row">
+        <div><label>יצרן</label><select id="s-make" onchange="onMake()"><option value="">בחר יצרן...</option></select></div>
+        <div><label>דגם</label><select id="s-model" onchange="onModel()" disabled><option value="">בחר דגם...</option></select></div>
+        <div><label>שנה</label><select id="s-year" onchange="onYear()" disabled><option value="">בחר שנה...</option></select></div>
+      </div>
+    </div>
+    <div class="btns"><button class="btn btn-p" onclick="goStep2()" id="btn1" disabled>המשך לשלב הבא</button></div>
+  </div>
+
+  <!-- Step 2 -->
+  <div id="step-2" class="card hid">
+    <div class="ct">שלב 2 — תיאור התקלה</div>
+    <div id="v-sum"></div>
+    <div><label>תאר את הבעיה (או בחר מהרשימה)</label>
+      <div class="acw"><input type="text" id="iss-q" placeholder="לדוגמה: רעש בבלמים, דליפת שמן..." oninput="onSearch()" onfocus="onSearch()"><div class="acl hid" id="ac-list"></div></div>
+    </div>
+    <div style="margin-top:16px"><div class="ct" style="font-size:1rem">או בחר מערכת:</div><div class="sg" id="sys-grid"></div></div>
+    <div id="iss-sec" class="hid" style="margin-top:16px"><div class="ct" style="font-size:1rem" id="iss-t">בעיות שכיחות:</div><div class="il" id="iss-list"></div></div>
+    <div class="btns"><button class="btn btn-s" onclick="goStep(1)">חזרה</button><button class="btn btn-p" onclick="goStep3()" id="btn2" disabled>התחל אבחון</button></div>
+  </div>
+
+  <!-- Step 3 -->
+  <div id="step-3" class="card hid">
+    <div class="ct">שלב 3 — אבחון מונחה (SOP)</div>
+    <div id="sop-info"></div>
+    <div class="crumb" id="sop-hist"></div>
+    <div id="sop-tree"></div>
+    <div class="btns"><button class="btn btn-s" onclick="goStep(2)">חזרה</button><button class="btn btn-s" onclick="resetSop()">התחל SOP מחדש</button></div>
+  </div>
+
+  <!-- Step 4 -->
+  <div id="step-4" class="card hid">
+    <div class="ct">שלב 4 — תוצאות אבחון</div>
+    <div id="diag-res"></div>
+    <div class="btns"><button class="btn btn-s" onclick="goStep(3)">חזרה ל-SOP</button><button class="btn btn-p" onclick="goStep5()">צפה בפתרון מלא</button></div>
+  </div>
+
+  <!-- Step 5 -->
+  <div id="step-5" class="card hid">
+    <div class="ct">שלב 5 — פתרון מפורט</div>
+    <div id="sol-det"></div>
+    <div class="btns"><button class="btn btn-s" onclick="goStep(1)">אבחון חדש</button><button class="btn btn-p" onclick="window.print()">הדפס סיכום</button></div>
+  </div>
+
+  <div id="loading" class="ld hid"><div class="spin"></div><p style="margin-top:12px">טוען נתוני רכבים...</p></div>
+</div>
+
+<script>
+// ── Data & State ───────────────────────────────────────────────────────────
+let DB = null; // { MAKE: { Model: { "2020": { engine:[...], ... }}}}
+const S = { step:1, mode:'plate', vehicle:null, systems:null, selSys:null, selIssue:null, selIdx:null, sop:null, sopPath:[], sopCur:null, diag:null };
+
+const SYS_INFO = {
+  engine:{he:'מערכת המנוע',ic:'🔧'}, cooling:{he:'מערכת קירור',ic:'❄️'},
+  electrical:{he:'מערכת חשמל',ic:'⚡'}, fuel:{he:'מערכת דלק',ic:'⛽'},
+  exhaust:{he:'פליטה (אגזוז)',ic:'💨'}, transmission:{he:'מערכת הילוכים',ic:'⚙️'},
+  suspension:{he:'מערכת מתלים',ic:'🔩'}, steering:{he:'מערכת היגוי',ic:'🎯'},
+  brakes:{he:'מערכת בלמים',ic:'🛑'}, electronics:{he:'אלקטרוניקה',ic:'📟'}
+};
+const SYS_ORDER = Object.keys(SYS_INFO);
+const URG_HE = { critical:'קריטי — טפל מיד!', high:'גבוה — טפל בהקדם', medium:'בינוני', low:'נמוך — עקוב' };
+
+// ── Init ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  renderSteps();
+  document.addEventListener('click', e => { if(!e.target.closest('.acw')) $('ac-list').classList.add('hid'); });
+  // Load DB
+  $('loading').classList.remove('hid');
+  try {
+    const r = await fetch('/vehicle_db.json');
+    DB = await r.json();
+    populateMakes();
+    $('loading').classList.add('hid');
+  } catch(e) {
+    $('loading').innerHTML = '<div class="alert alert-e">שגיאה בטעינת מסד נתונים: ' + e.message + '</div>';
+  }
+});
+
+const $ = id => document.getElementById(id);
+
+// ── Steps ──────────────────────────────────────────────────────────────────
+function renderSteps() {
+  const b = $('steps-bar'); b.innerHTML = '';
+  for(let i=1;i<=5;i++){
+    if(i>1){const c=document.createElement('div');c.className='sc'+(i<=S.step?' done':'');b.appendChild(c);}
+    const d=document.createElement('div');d.className='sd'+(i===S.step?' on':i<S.step?' done':'');
+    d.textContent=i<S.step?'✓':i;b.appendChild(d);
+  }
+}
+function goStep(n){for(let i=1;i<=5;i++)$('step-'+i).classList.toggle('hid',i!==n);S.step=n;renderSteps();window.scrollTo({top:0,behavior:'smooth'});}
+
+// ── Step 1 ─────────────────────────────────────────────────────────────────
+function switchMode(m){
+  S.mode=m;
+  $('plate-mode').classList.toggle('hid',m!=='plate');
+  $('manual-mode').classList.toggle('hid',m!=='manual');
+  document.querySelectorAll('.tabs .tab').forEach((t,i)=>t.classList.toggle('on',i===(m==='plate'?0:1)));
+  chk1();
+}
+function fmtPlate(el){
+  let v=el.value.replace(/\D/g,'');if(v.length>8)v=v.slice(0,8);
+  if(v.length>=6)el.value=v.slice(0,2)+'-'+v.slice(2,5)+'-'+v.slice(5);
+  else if(v.length>=3)el.value=v.slice(0,2)+'-'+v.slice(2);else el.value=v;chk1();
+}
+async function lookupPlate(){
+  const p=$('plate-num').value.replace(/\D/g,'');if(p.length<5)return;
+  const b=$('btn-lu');b.disabled=true;b.textContent='מחפש...';
+  try{
+    const r=await fetch('/api/license-plate?plate='+p);
+    const d=await r.json();
+    if(d.error){
+      $('plate-res').innerHTML='<div class="alert alert-e">'+d.error+'</div>';
+      $('plate-res').classList.remove('hid');S.vehicle=null;chk1();return;
+    }
+    S.vehicle={make:d.en_make||d.tozeret_nm,model:d.en_model||d.kinuy_mishari,year:String(d.shnat_yitzur),plate:d};
+    let h='<div class="pr"><div class="alert alert-s">רכב נמצא!</div>';
+    h+=`<div class="f"><span class="fl">יצרן:</span>${d.tozeret_nm}${d.en_make?' ('+d.en_make+')':''}</div>`;
+    h+=`<div class="f"><span class="fl">דגם:</span>${d.kinuy_mishari}${d.en_model?' ('+d.en_model+')':''}</div>`;
+    h+=`<div class="f"><span class="fl">שנת ייצור:</span>${d.shnat_yitzur}</div>`;
+    if(d.sug_delek_nm)h+=`<div class="f"><span class="fl">סוג דלק:</span>${d.sug_delek_nm}</div>`;
+    if(d.tzeva_rechev)h+=`<div class="f"><span class="fl">צבע:</span>${d.tzeva_rechev}</div>`;
+    if(d.tokef_dt)h+=`<div class="f"><span class="fl">תוקף רישיון:</span>${d.tokef_dt}</div>`;
+    // Check if in DB
+    const inDb = DB && DB[S.vehicle.make] && DB[S.vehicle.make][S.vehicle.model] && DB[S.vehicle.make][S.vehicle.model][S.vehicle.year];
+    if(!inDb)h+='<div class="alert alert-i" style="margin-top:12px">הרכב זוהה, אך אין מידע על תקלות ספציפיות לדגם זה במסד הנתונים. ניתן להמשיך עם הזנה ידנית.</div>';
+    h+='</div>';
+    $('plate-res').innerHTML=h;$('plate-res').classList.remove('hid');chk1();
+  }catch(e){
+    $('plate-res').innerHTML='<div class="alert alert-e">שגיאה: '+e.message+'</div>';
+    $('plate-res').classList.remove('hid');
+  }finally{b.disabled=false;b.textContent='חפש';}
+}
+function populateMakes(){
+  if(!DB)return;const s=$('s-make');
+  Object.keys(DB).sort().forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;s.appendChild(o);});
+}
+function onMake(){
+  const mk=$('s-make').value,sm=$('s-model'),sy=$('s-year');
+  sm.innerHTML='<option value="">בחר דגם...</option>';sy.innerHTML='<option value="">בחר שנה...</option>';
+  sm.disabled=!mk;sy.disabled=true;S.vehicle=null;chk1();
+  if(!mk||!DB[mk])return;
+  Object.keys(DB[mk]).sort().forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;sm.appendChild(o);});
+}
+function onModel(){
+  const mk=$('s-make').value,md=$('s-model').value,sy=$('s-year');
+  sy.innerHTML='<option value="">בחר שנה...</option>';sy.disabled=!md;S.vehicle=null;chk1();
+  if(!mk||!md||!DB[mk]||!DB[mk][md])return;
+  Object.keys(DB[mk][md]).sort((a,b)=>b-a).forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y;sy.appendChild(o);});
+}
+function onYear(){
+  const mk=$('s-make').value,md=$('s-model').value,yr=$('s-year').value;
+  if(yr)S.vehicle={make:mk,model:md,year:yr};else S.vehicle=null;chk1();
+}
+function chk1(){$('btn1').disabled=!S.vehicle;}
+
+// ── Step 2 ─────────────────────────────────────────────────────────────────
+function goStep2(){
+  if(!S.vehicle)return;goStep(2);
+  const v=S.vehicle;
+  $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}</div>`;
+  S.systems = DB && DB[v.make] && DB[v.make][v.model] && DB[v.make][v.model][v.year] ? DB[v.make][v.model][v.year] : {};
+  renderSystems();
+}
+function renderSystems(){
+  const g=$('sys-grid');g.innerHTML='';
+  SYS_ORDER.forEach(k=>{
+    const info=SYS_INFO[k],issues=S.systems[k]||[];
+    const d=document.createElement('div');d.className='sc2'+(S.selSys===k?' sel':'');
+    d.innerHTML=`<div class="ic">${info.ic}</div><div class="nm">${info.he}</div><div class="cn">${issues.length} בעיות</div>`;
+    d.onclick=()=>selSys(k);g.appendChild(d);
+  });
+}
+function selSys(k){
+  S.selSys=k;S.selIssue=null;S.selIdx=null;renderSystems();
+  const issues=S.systems[k]||[];
+  if(!issues.length){$('iss-sec').classList.add('hid');chk2();return;}
+  $('iss-t').textContent='בעיות שכיחות — '+SYS_INFO[k].he+':';
+  const l=$('iss-list');l.innerHTML='';
+  issues.forEach((iss,i)=>{
+    const d=document.createElement('div');d.className='ii';
+    d.innerHTML=`<div class="in">${i+1}</div><div>${iss}</div>`;
+    d.onclick=()=>selIss(k,iss,i);l.appendChild(d);
+  });
+  $('iss-sec').classList.remove('hid');chk2();
+}
+function selIss(sys,iss,idx){
+  S.selSys=sys;S.selIssue=iss;S.selIdx=idx;
+  document.querySelectorAll('.ii').forEach((el,i)=>el.classList.toggle('sel',i===idx));chk2();
+}
+function onSearch(){
+  const q=$('iss-q').value.trim(),el=$('ac-list');
+  if(!q||!S.systems){el.classList.add('hid');return;}
+  const items=[];
+  SYS_ORDER.forEach(k=>{(S.systems[k]||[]).forEach((iss,i)=>{if(iss.includes(q))items.push({sys:k,iss,idx:i});});});
+  if(!items.length){el.classList.add('hid');return;}
+  el.innerHTML='';items.slice(0,10).forEach(it=>{
+    const d=document.createElement('div');d.className='aci';
+    d.innerHTML=`<span class="sb2">${SYS_INFO[it.sys].ic} ${SYS_INFO[it.sys].he}</span>${it.iss}`;
+    d.onclick=()=>{selIss(it.sys,it.iss,it.idx);selSys(it.sys);$('iss-q').value=it.iss;el.classList.add('hid');};
+    el.appendChild(d);
+  });el.classList.remove('hid');
+}
+function chk2(){$('btn2').disabled=!S.selIssue;}
+
+// ── Step 3: SOP ────────────────────────────────────────────────────────────
+function goStep3(){
+  if(!S.selIssue)return;goStep(3);
+  const v=S.vehicle;
+  $('sop-info').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong> | ${S.selIssue}</div>`;
+  S.sop={vehicle:`${v.make} ${v.model} ${v.year}`,system:SYS_INFO[S.selSys].he,issue:S.selIssue};
+  S.sopPath=[];S.sopCur=buildSopTree(S.selSys,S.selIssue);renderSop();
+}
+function renderSop(){
+  const c=$('sop-tree'),n=S.sopCur,h=$('sop-hist');
+  h.innerHTML=S.sopPath.map(p=>`<div class="cb">${p.q.slice(0,30)}... <span class="a ${p.a}">${p.a==='yes'?'כן':'לא'}</span></div>`).join('');
+  if(!n){c.innerHTML='';return;}
+  if(n.diagnosis){S.diag=n;goStep4();return;}
+  c.innerHTML=`<div class="fi"><div class="sq">${n.question}</div><div class="sb"><div><button class="sby" onclick="ansSop('yes')">כן</button></div><div><button class="sbn" onclick="ansSop('no')">לא</button></div></div></div>`;
+}
+function ansSop(a){S.sopPath.push({q:S.sopCur.question,a});S.sopCur=a==='yes'?S.sopCur.yes:S.sopCur.no;renderSop();}
+function resetSop(){S.sopPath=[];S.sopCur=buildSopTree(S.selSys,S.selIssue);renderSop();}
+
+// ── Step 4 ─────────────────────────────────────────────────────────────────
+function goStep4(){
+  goStep(4);const d=S.diag,s=S.sop,u=d.urgency||'medium';
+  let h=`<div class="dc ${u} fi"><div class="dt">${d.diagnosis}</div><span class="ub ${u}">${URG_HE[u]}</span>`;
+  h+=`<div class="ds" style="margin-top:16px"><h4>רכב</h4><p>${s.vehicle}</p></div>`;
+  h+=`<div class="ds"><h4>מערכת</h4><p>${s.system}</p></div>`;
+  h+=`<div class="ds"><h4>בעיה מקורית</h4><p>${s.issue}</p></div>`;
+  if(S.sopPath.length){h+='<div class="ds"><h4>מסלול אבחון</h4>';
+    S.sopPath.forEach(p=>{h+=`<div style="padding:2px 0"><span style="color:var(--g500)">${p.q}</span> ← <strong style="color:${p.a==='yes'?'var(--grn)':'var(--red)'}">${p.a==='yes'?'כן':'לא'}</strong></div>`;});h+='</div>';}
+  h+='</div>';$('diag-res').innerHTML=h;
+}
+
+// ── Step 5 ─────────────────────────────────────────────────────────────────
+function goStep5(){
+  goStep(5);const d=S.diag,s=S.sop,u=d.urgency||'medium';
+  const costs={engine:{min:500,max:8000},cooling:{min:300,max:4000},electrical:{min:200,max:3000},fuel:{min:300,max:5000},exhaust:{min:400,max:6000},transmission:{min:500,max:12000},suspension:{min:300,max:4000},steering:{min:300,max:5000},brakes:{min:200,max:3000},electronics:{min:200,max:4000}};
+  const cost=costs[S.selSys]||{min:300,max:5000};
+  let h='<div class="fi">';
+  h+=`<div class="ds"><h4>פתרון מומלץ</h4><p style="font-size:1.1rem;font-weight:600">${d.solution}</p></div>`;
+  if(d.parts&&d.parts.length){h+='<div class="ds"><h4>חלקים נדרשים</h4><div class="pl">';d.parts.forEach(p=>{h+=`<span class="pt">${p}</span>`;});h+='</div></div>';}
+  h+=`<div class="ds"><h4>הערכת עלות</h4><div class="cr"><span>${cost.min} ₪</span><div class="crb"><div class="crf" style="width:60%"></div></div><span>${cost.max} ₪</span></div></div>`;
+  h+=`<div class="ds"><h4>דחיפות</h4><span class="ub ${u}">${URG_HE[u]}</span></div>`;
+  h+=`<div class="smr"><h4 style="margin-bottom:12px">סיכום אבחון</h4><table style="width:100%;border-collapse:collapse">`;
+  h+=`<tr><td class="lbl">רכב:</td><td>${s.vehicle}</td></tr>`;
+  h+=`<tr><td class="lbl">מערכת:</td><td>${s.system}</td></tr>`;
+  h+=`<tr><td class="lbl">תקלה:</td><td>${s.issue}</td></tr>`;
+  h+=`<tr><td class="lbl">אבחנה:</td><td>${d.diagnosis}</td></tr>`;
+  h+=`<tr><td class="lbl">פתרון:</td><td>${d.solution}</td></tr>`;
+  if(d.parts&&d.parts.length)h+=`<tr><td class="lbl">חלקים:</td><td>${d.parts.join(', ')}</td></tr>`;
+  h+='</table></div></div>';
+  $('sol-det').innerHTML=h;
+}
+
+// ── SOP Tree Builder ───────────────────────────────────────────────────────
+function buildSopTree(sys, issue) {
+  const trees = {
+    engine: {
+      'דליפ': {question:'האם יש כתמי שמן מתחת לרכב?',
+        yes:{question:'האם הכתמים בצבע כהה (שמן מנוע)?',
+          yes:{question:'האם רמת השמן ירדה מתחת למינימום?',
+            yes:{diagnosis:'דליפת שמן משמעותית',urgency:'high',solution:'יש לאתר מקור הדליפה — ייתכן גסקט ראש מצלינדר, אטם כרטר, או מכסה שסתומים.',parts:['גסקט ראש מצלינדר','אטם כרטר שמן','מכסה שסתומים + אטם']},
+            no:{diagnosis:'דליפת שמן קלה',urgency:'medium',solution:'נטר רמת שמן. אם הדליפה מתגברת — יש לטפל.',parts:['אטם מכסה שסתומים','רינג שמן']}},
+          no:{question:'האם הנוזל בצבע ירוק/כתום (נוזל קירור)?',
+            yes:{diagnosis:'דליפת נוזל קירור מהמנוע',urgency:'high',solution:'בדוק גסקט ראש מצלינדר ומשאבת מים.',parts:['גסקט ראש מצלינדר','משאבת מים']},
+            no:{diagnosis:'דליפת נוזל הילוכים או הגה כוח',urgency:'medium',solution:'בדוק צינורות הגה כוח ומארז הילוכים.',parts:['אטמי הילוכים','צינור הגה כוח']}}},
+        no:{question:'האם מורגשת ריח שמן שרוף?',
+          yes:{diagnosis:'דליפת שמן על מניפולד פליטה',urgency:'medium',solution:'אתר דליפה ותקן — סכנת שריפה.',parts:['אטם מכסה שסתומים','אטם מניפולד']},
+          no:{diagnosis:'ייתכן דליפה פנימית (שמן לתא שריפה)',urgency:'high',solution:'בדוק רמת שמן ובדיקת לחץ צילינדרים.',parts:['טבעות בוכנה','מכווני שסתומים']}}},
+      'הצתה': {question:'האם המנוע מתקשה להתניע?',
+        yes:{question:'האם נשמע סיבוב מתנע אבל המנוע לא נתפס?',
+          yes:{question:'האם הוחלפו מצתים לאחרונה?',
+            yes:{diagnosis:'תקלה בסלילי הצתה או מודול הצתה',urgency:'high',solution:'בדוק סלילי הצתה וכבלים, החלף לפי הצורך.',parts:['סליל הצתה','כבלי מצתים','מודול הצתה']},
+            no:{diagnosis:'מצתים שחוקים',urgency:'medium',solution:'החלף מצתים ובדוק מרווח ניצוץ.',parts:['מצתים (סט)','כבלי מצתים']}},
+          no:{diagnosis:'בעיה במתנע או סוללה',urgency:'high',solution:'בדוק מתח סוללה ומתנע.',parts:['מתנע','סוללה']}},
+        no:{question:'האם יש ירידה בביצועי המנוע או פספוסים?',
+          yes:{diagnosis:'הצתה לא סדירה',urgency:'medium',solution:'בדוק מצתים, סלילי הצתה, ומזרקים.',parts:['מצתים','סלילי הצתה','מזרקים']},
+          no:{diagnosis:'בעיית הצתה קלה — נטר',urgency:'low',solution:'עקוב אחרי ביצועי מנוע. אם חוזר — בדוק בקומפיוטר.',parts:[]}}},
+      'חיישן': {question:'האם נדלקה נורית CHECK ENGINE?',
+        yes:{question:'האם יש שינוי בביצועי המנוע?',
+          yes:{diagnosis:'חיישן תקול המשפיע על ביצועים',urgency:'high',solution:'קרא קודי OBD2 וזהה חיישן ספציפי.',parts:['חיישן O2','חיישן MAF','חיישן MAP']},
+          no:{diagnosis:'חיישן תקול ללא השפעה מיידית',urgency:'medium',solution:'קרא קודי תקלה. ייתכן חיישן פליטה.',parts:['חיישן חמצן','חיישן טמפרטורה']}},
+        no:{question:'האם צריכת הדלק עלתה?',
+          yes:{diagnosis:'חיישן תקול הגורם לצריכה מוגברת',urgency:'medium',solution:'בדוק חיישן MAF/MAP וחיישני חמצן.',parts:['חיישן MAF','חיישן O2']},
+          no:{diagnosis:'ייתכן חיישן בקצה חייו',urgency:'low',solution:'בדיקת קודי תקלה מומלצת בטיפול הבא.',parts:[]}}},
+      '_': {question:'האם נורית CHECK ENGINE דולקת?',
+        yes:{question:'האם הנורית מהבהבת?',
+          yes:{diagnosis:'פספוסי הצתה — סכנה לממיר קטליטי',urgency:'critical',solution:'עצור בהקדם! נורית מהבהבת = נזק אפשרי לממיר.',parts:['מצתים','סלילי הצתה','ממיר קטליטי']},
+          no:{diagnosis:'תקלת מנוע — יש לקרוא קודים',urgency:'medium',solution:'קרא קודי OBD2 וטפל בהתאם.',parts:[]}},
+        no:{question:'האם יש רעש חריג מהמנוע?',
+          yes:{diagnosis:'חשד לבלאי מכני',urgency:'medium',solution:'בדיקת מכונאי מומלצת.',parts:['רצועת טיימינג','מסבי מנוע']},
+          no:{diagnosis:'בעיית מנוע כללית',urgency:'low',solution:'נטר ביצועים. אם חוזר — בדוק בקומפיוטר.',parts:[]}}}
+    },
+    cooling: {
+      'דליפ': {question:'האם רמת נוזל הקירור ירדה?',
+        yes:{question:'האם יש כתם ירוק/כתום מתחת לרכב?',
+          yes:{diagnosis:'דליפת נוזל קירור חיצונית',urgency:'high',solution:'בדוק רדיאטור, צינורות, ומשאבת מים.',parts:['רדיאטור','צינורות קירור','משאבת מים']},
+          no:{question:'האם יש אדים לבנים מהאגזוז?',
+            yes:{diagnosis:'דליפה פנימית — גסקט ראש מצלינדר',urgency:'critical',solution:'אל תנסע! חשד לפריצת גסקט. גרור למוסך.',parts:['גסקט ראש מצלינדר','בורגי ראש']},
+            no:{diagnosis:'דליפה איטית',urgency:'medium',solution:'מלא נוזל ועקוב. בדוק מכסה רדיאטור.',parts:['מכסה רדיאטור']}}},
+        no:{question:'האם מחוג הטמפרטורה עולה?',
+          yes:{diagnosis:'תרמוסטט תקוע או מאוורר תקול',urgency:'high',solution:'בדוק תרמוסטט ומאוורר קירור.',parts:['תרמוסטט','מאוורר קירור','ממסר']},
+          no:{diagnosis:'מערכת קירור תקינה כרגע',urgency:'low',solution:'החלף נוזל קירור לפי יצרן.',parts:[]}}},
+      '_': {question:'האם מחוג הטמפרטורה עולה מעבר לרגיל?',
+        yes:{question:'האם זה בעיקר בנסיעה בעיר?',
+          yes:{diagnosis:'בעיית מאוורר או זרימת אוויר',urgency:'high',solution:'בדוק מאוורר קירור, ממסר, וחיישן טמפרטורה.',parts:['מאוורר קירור','ממסר','חיישן טמפרטורה']},
+          no:{diagnosis:'בעיית זרימת נוזל',urgency:'high',solution:'בדוק תרמוסטט ומשאבת מים.',parts:['תרמוסטט','משאבת מים']}},
+        no:{question:'האם המזגן פחות קר?',
+          yes:{diagnosis:'קונדנסור או מאוורר משני',urgency:'medium',solution:'בדוק קונדנסור ומאוורר.',parts:['קונדנסור','מאוורר משני']},
+          no:{diagnosis:'מערכת קירור תקינה',urgency:'low',solution:'בדוק רמת נוזל ומצב צינורות.',parts:[]}}}
+    },
+    brakes: {
+      'בלאי|שחיק': {question:'האם נשמע צרצור/חריקה בבלימה?',
+        yes:{question:'האם הצרצור קבוע (גם ללא בלם)?',
+          yes:{diagnosis:'רפידות שחוקות לגמרי — מתכת על מתכת',urgency:'critical',solution:'החלף רפידות ודיסקים מיד! סכנת בטיחות.',parts:['רפידות בלם','דיסקי בלם','חיישני בלאי']},
+          no:{diagnosis:'רפידות בשלבי בלאי',urgency:'high',solution:'החלף רפידות. בדוק עובי דיסקים.',parts:['רפידות בלם (סט)','דיסקי בלם']}},
+        no:{question:'האם יש רעידות בהגה בבלימה?',
+          yes:{diagnosis:'דיסקי בלם עקומים',urgency:'high',solution:'הקזה או החלפת דיסקים.',parts:['דיסקי בלם','רפידות בלם']},
+          no:{diagnosis:'בלאי נורמלי',urgency:'medium',solution:'החלף רפידות בטיפול הקרוב.',parts:['רפידות בלם']}}},
+      '_': {question:'האם דוושת הבלם רכה מהרגיל?',
+        yes:{question:'האם צריך ללחוץ חזק יותר?',
+          yes:{diagnosis:'דליפה הידראולית או בוסטר',urgency:'critical',solution:'בדוק נוזל בלמים ודליפות. אל תנסע!',parts:['נוזל בלמים','צילינדר ראשי','צינורות בלם']},
+          no:{diagnosis:'אוויר במערכת הבלמים',urgency:'high',solution:'שחרור אוויר (bleeding).',parts:['נוזל בלמים']}},
+        no:{question:'האם הרכב נוטה לצד בבלימה?',
+          yes:{diagnosis:'קליפר תקוע או בלאי לא אחיד',urgency:'high',solution:'בדוק קליפרים ורפידות.',parts:['קליפר בלם','רפידות בלם']},
+          no:{diagnosis:'מערכת בלמים תקינה',urgency:'low',solution:'החלף נוזל בלמים כל שנתיים.',parts:[]}}}
+    },
+    transmission: {
+      '_': {question:'האם יש בעיה בהחלפת הילוכים?',
+        yes:{question:'האם ההילוכים "מחליקים"?',
+          yes:{diagnosis:'בלאי פנימי בגיר',urgency:'critical',solution:'בדיקת גיר מקצועית. ייתכן שיפוץ.',parts:['שמן גיר','פילטר גיר','שיפוץ גיר']},
+          no:{question:'האם יש חבטה בהעברת הילוך?',
+            yes:{diagnosis:'בעיית סולנואיד או שמן',urgency:'high',solution:'החלף שמן גיר ופילטר. בדוק סולנואידים.',parts:['שמן ATF','פילטר גיר','סולנואיד']},
+            no:{diagnosis:'ייתכן צורך בכיול גיר',urgency:'medium',solution:'כיול גיר בקומפיוטר.',parts:[]}}},
+        no:{question:'האם יש דליפת שמן גיר?',
+          yes:{diagnosis:'דליפת שמן הילוכים',urgency:'high',solution:'אתר דליפה ובדוק אטמים.',parts:['אטם גיר','שמן גיר']},
+          no:{diagnosis:'מערכת הילוכים תקינה',urgency:'low',solution:'החלף שמן גיר לפי יצרן.',parts:[]}}}
+    },
+    electrical: {
+      '_': {question:'האם הבעיה קשורה להתנעה?',
+        yes:{question:'האם הסוללה חדשה (< שנה)?',
+          yes:{diagnosis:'בעיית אלטרנטור או חיבורים',urgency:'high',solution:'בדוק מתח טעינה מאלטרנטור (13.5-14.5V).',parts:['אלטרנטור','רצועה','כבלי סוללה']},
+          no:{diagnosis:'סוללה חלשה',urgency:'medium',solution:'בדוק מתח סוללה. מתחת ל-12V — החלף.',parts:['סוללה','קלמפים']}},
+        no:{question:'האם יש תקלה בתאורה/חלונות/חשמל?',
+          yes:{diagnosis:'בעיה בנתיכים או חיווט',urgency:'medium',solution:'בדוק נתיכים ותיבת נתיכים.',parts:['נתיכים','ממסרים']},
+          no:{diagnosis:'מערכת חשמל תקינה',urgency:'low',solution:'בדוק חיווט בטיפול הבא.',parts:[]}}}
+    },
+    fuel: {
+      '_': {question:'האם צריכת הדלק עלתה משמעותית?',
+        yes:{question:'האם מורגש ריח דלק חזק?',
+          yes:{diagnosis:'דליפת דלק — סכנה!',urgency:'critical',solution:'בדוק צינורות דלק ומזרקים מיד.',parts:['צינורות דלק','מזרקים','אטם מכסה דלק']},
+          no:{diagnosis:'מזרקים מלוכלכים או חיישן תקול',urgency:'medium',solution:'ניקוי מזרקים ובדיקת חיישנים.',parts:['מזרקים','פילטר דלק','חיישן O2']}},
+        no:{question:'האם המנוע מפספס?',
+          yes:{diagnosis:'בעיית אספקת דלק',urgency:'high',solution:'בדוק משאבת דלק, פילטר, ולחץ.',parts:['משאבת דלק','פילטר דלק','וסת לחץ']},
+          no:{diagnosis:'מערכת דלק תקינה',urgency:'low',solution:'החלף פילטר דלק לפי יצרן.',parts:[]}}}
+    },
+    exhaust: {
+      '_': {question:'האם נשמע רעש חזק מהאגזוז?',
+        yes:{question:'האם הרעש מקדמת הרכב?',
+          yes:{diagnosis:'סדק במניפולד פליטה',urgency:'high',solution:'בדוק מניפולד וצמוד פליטה.',parts:['גסקט מניפולד','צמוד פליטה']},
+          no:{diagnosis:'חור באגזוז',urgency:'medium',solution:'החלף חלק פגום.',parts:['צינור אגזוז','משתיק קול']}},
+        no:{question:'האם נדלקה CHECK ENGINE?',
+          yes:{diagnosis:'ממיר קטליטי או חיישן O2',urgency:'high',solution:'קרא קודי תקלה.',parts:['ממיר קטליטי','חיישן O2']},
+          no:{diagnosis:'מערכת פליטה תקינה',urgency:'low',solution:'בדוק ויזואלית בטיפול הבא.',parts:[]}}}
+    },
+    suspension: {
+      '_': {question:'האם מורגש רעש חבטות?',
+        yes:{question:'האם בעיקר על מהמורות?',
+          yes:{diagnosis:'בולמי זעזועים או סיילנט בלוקים שחוקים',urgency:'high',solution:'בדוק בולמים ורכיבי תליה.',parts:['בולמי זעזועים','סיילנט בלוקים','מוטות מייצבים']},
+          no:{diagnosis:'רפידות מגדל או מסבי גלגל',urgency:'medium',solution:'בדוק רפידות מגדל ומסבים.',parts:['רפידות מגדל','מסבי גלגל']}},
+        no:{question:'האם הרכב נוטה לצד?',
+          yes:{diagnosis:'בעיית כיוון גלגלים',urgency:'high',solution:'כיוון גלגלים ובדיקת קפיצים.',parts:['כיוון גלגלים','קפיצים']},
+          no:{diagnosis:'מתלים תקינים',urgency:'low',solution:'בדוק בולמים בטיפול הבא.',parts:[]}}}
+    },
+    steering: {
+      '_': {question:'האם יש רעש בסיבוב?',
+        yes:{question:'האם "נקישה" קצבית?',
+          yes:{diagnosis:'גומיית הנעה (CV Joint) שחוקה',urgency:'high',solution:'החלף גומיית הנעה.',parts:['גומיית הנעה','גריז','מחבר הנעה']},
+          no:{diagnosis:'בעיה במשאבת הגה כוח',urgency:'medium',solution:'בדוק שמן הגה כוח ורקת היגוי.',parts:['שמן הגה כוח','רקת היגוי']}},
+        no:{question:'האם ההגה כבד מהרגיל?',
+          yes:{diagnosis:'בעיית הגה כוח',urgency:'high',solution:'בדוק משאבת הגה כוח ורצועה.',parts:['משאבת הגה כוח','שמן הגה','רצועה']},
+          no:{diagnosis:'מערכת היגוי תקינה',urgency:'low',solution:'בדוק מוטות היגוי בטיפול הבא.',parts:[]}}}
+    },
+    electronics: {
+      '_': {question:'האם יש תקלה במסך/מולטימדיה?',
+        yes:{question:'האם המסך נתקע או מתאפס?',
+          yes:{diagnosis:'תקלת תוכנה',urgency:'low',solution:'עדכון תוכנה או איפוס יצרן.',parts:['עדכון תוכנה']},
+          no:{diagnosis:'בעיית חומרה ביחידה',urgency:'medium',solution:'בדוק חיבורים. ייתכן החלפה.',parts:['יחידת מולטימדיה','כבלים']}},
+        no:{question:'האם יש תקלות ADAS?',
+          yes:{diagnosis:'חיישן ADAS מלוכלך',urgency:'medium',solution:'נקה חיישנים. כיול מחדש.',parts:['כיול מצלמה','ניקוי חיישנים']},
+          no:{diagnosis:'מערכות אלקטרוניות תקינות',urgency:'low',solution:'עדכן תוכנה בטיפול הבא.',parts:[]}}}
+    }
+  };
+
+  const sysT = trees[sys] || {};
+  // Try keyword match
+  for (const [kp, tree] of Object.entries(sysT)) {
+    if (kp === '_') continue;
+    if (kp.split('|').some(kw => issue.includes(kw))) return tree;
+  }
+  // Default
+  return sysT['_'] || {question:'האם הבעיה קבועה?',
+    yes:{diagnosis:'תקלה קבועה — פנה למוסך',urgency:'high',solution:'בדיקה מקצועית נדרשת.',parts:[]},
+    no:{diagnosis:'תקלה לסירוגין — עקוב',urgency:'medium',solution:'תעד מתי קורה ופנה למוסך.',parts:[]}};
+}
+</script>
+</body>
+</html>
