@@ -1,7 +1,7 @@
 // Vercel Serverless Function — Proxy for data.gov.il license plate lookup
 // Endpoint: /api/license-plate?plate=1234567
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
