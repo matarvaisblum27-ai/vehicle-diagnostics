@@ -357,19 +357,69 @@ function onYear(){
 }
 function chk1(){$('btn1').disabled=!S.vehicle;}
 
+// ── Vehicle Type Classifier ───────────────────────────────────────────────
+function classifyVehicle(vehicle) {
+  const model = (vehicle.model || '').toLowerCase();
+  const make = (vehicle.make || '').toLowerCase();
+  const plate = vehicle.plate || {};
+  const fuelFromPlate = (plate.sug_delek_nm || '').toLowerCase();
+  // Fuel type detection
+  let fuel = 'petrol'; // default
+  if(fuelFromPlate.includes('דיזל') || fuelFromPlate.includes('diesel') || fuelFromPlate.includes('סולר'))
+    fuel = 'diesel';
+  else if(fuelFromPlate.includes('חשמל') || fuelFromPlate.includes('electric'))
+    fuel = 'electric';
+  else if(fuelFromPlate.includes('היברידי') || fuelFromPlate.includes('hybrid'))
+    fuel = 'hybrid';
+  else if(model.includes('hybrid') || model.includes('hev') || model.includes('hsd') || model.includes('hv') || model.includes('phev') || model.includes('plug'))
+    fuel = 'hybrid';
+  else if(model.includes('electric') || model.includes('ev') || model.match(/\bbz\b/) || model.includes('leaf') || model.includes('bolt') || model.includes('model s') || model.includes('model 3') || model.includes('model y') || model.includes('model x') || make==='tesla' || make==='byd' || make==='nio' || make==='polestar')
+    fuel = 'electric';
+  else if(model.includes('diesel') || model.includes('tdi') || model.includes('cdi') || model.includes('hdi') || model.includes('dci') || model.includes('d4d') || model.includes('cdti'))
+    fuel = 'diesel';
+  // Turbo detection
+  const turbo = model.includes('turbo') || model.includes('tsi') || model.includes('tfsi') || model.includes('ecoboost') || model.includes('tdi') || model.includes('gti') || model.includes('rs') || model.includes('amg') || model.includes('n54') || model.includes('n55') || model.includes('sport') || make==='porsche';
+  // Transmission detection
+  let trans = 'auto'; // default
+  if(model.includes('cvt') || make==='nissan' || make==='subaru') trans = 'cvt';
+  if(model.includes('manual') || model.includes('mt') || model.includes('stick')) trans = 'manual';
+  return {fuel, turbo, trans};
+}
+const FUEL_LABELS = {petrol:'⛽ בנזין',diesel:'🛢️ דיזל',hybrid:'🔋 היברידי',electric:'⚡ חשמלי'};
+const FUEL_COLORS = {petrol:'var(--pri-l)',diesel:'var(--yel-l)',hybrid:'var(--grn-l)',electric:'#e0e7ff'};
+
+// Get known issues from DB for this vehicle+system
+function getKnownIssues(vehicle, systemKey) {
+  if(!DB) return [];
+  const makeData = DB[vehicle.make];
+  if(!makeData) return [];
+  const modelData = makeData[vehicle.model];
+  if(!modelData) return [];
+  const yearData = modelData[vehicle.year];
+  if(!yearData) return [];
+  return yearData[systemKey] || [];
+}
+
 // ── Step 2: Symptom-based ──────────────────────────────────────────────────
 function goStep2(){
   if(!S.vehicle)return;goStep(2);
   const v=S.vehicle;
-  $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}</div>`;
+  S.vType = classifyVehicle(v);
+  const fLabel = FUEL_LABELS[S.vType.fuel];
+  const fColor = FUEL_COLORS[S.vType.fuel];
+  let badges = `<span style="background:${fColor};padding:3px 10px;border-radius:6px;font-size:.85rem;font-weight:600">${fLabel}</span>`;
+  if(S.vType.turbo) badges += `<span style="background:#fef3c7;padding:3px 10px;border-radius:6px;font-size:.85rem;font-weight:600">🌀 טורבו</span>`;
+  $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${badges}</div></div>`;
   renderSystems();
 }
 function renderSystems(){
   const g=$('sys-grid');g.innerHTML='';
   SYS_ORDER.forEach(k=>{
     const info=SYS_INFO[k], syms=SYMPTOMS[k]||[];
+    const knownIssues = S.vehicle ? getKnownIssues(S.vehicle, k) : [];
+    const knownCount = knownIssues.length;
     const d=document.createElement('div');d.className='sc2'+(S.selSys===k?' sel':'');
-    d.innerHTML=`<div class="ic">${info.ic}</div><div class="nm">${info.he}</div><div class="cn">${syms.length} תסמינים</div>`;
+    d.innerHTML=`<div class="ic">${info.ic}</div><div class="nm">${info.he}</div><div class="cn">${syms.length} תסמינים</div>${knownCount?`<div class="cn" style="color:var(--org);font-weight:600">${knownCount} בעיות ידועות</div>`:''}`;
     d.onclick=()=>selSys(k);g.appendChild(d);
   });
 }
@@ -379,6 +429,30 @@ function selSys(k){
   if(!syms.length){$('iss-sec').classList.add('hid');chk2();return;}
   $('iss-t').textContent='מה קורה? — '+SYS_INFO[k].he+':';
   const l=$('iss-list');l.innerHTML='';
+  // Show known issues from DB first
+  const knownIssues = S.vehicle ? getKnownIssues(S.vehicle, k) : [];
+  if(knownIssues.length){
+    const hdr=document.createElement('div');
+    hdr.style.cssText='padding:10px 14px;background:var(--yel-l);border:1.5px solid var(--yel);border-radius:8px;margin-bottom:10px;font-size:.9rem;font-weight:600;color:var(--g700)';
+    hdr.innerHTML=`⚠️ בעיות ידועות ב-${S.vehicle.make} ${S.vehicle.model} ${S.vehicle.year}:`;
+    l.appendChild(hdr);
+    knownIssues.forEach((issue,i)=>{
+      const d=document.createElement('div');d.className='ii';
+      d.style.borderColor='var(--yel)';d.style.background='#fffbeb';
+      d.innerHTML=`<div class="in" style="background:var(--yel);color:#fff">★</div><div><div style="font-weight:600">${issue}</div><div style="font-size:.8rem;color:var(--g500)">בעיה ידועה לדגם זה</div></div>`;
+      d.onclick=()=>{
+        // Create a synthetic symptom for this known issue
+        const synSym={id:'known_'+k+'_'+i, text:issue, isKnown:true};
+        selIss(k,synSym,syms.length+i);
+      };
+      l.appendChild(d);
+    });
+    const sep=document.createElement('div');
+    sep.style.cssText='padding:8px 14px;font-size:.85rem;font-weight:600;color:var(--g500);margin-top:6px';
+    sep.textContent='או בחר תסמין כללי:';
+    l.appendChild(sep);
+  }
+  // Then show generic symptoms
   syms.forEach((sym,i)=>{
     const d=document.createElement('div');d.className='ii';
     d.innerHTML=`<div class="in">${i+1}</div><div>${sym.text}</div>`;
@@ -409,9 +483,17 @@ function chk2(){$('btn2').disabled=!S.selIssue;}
 function goStep3(){
   if(!S.selIssue)return;goStep(3);
   const v=S.vehicle;
-  $('sop-info').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong> | ${S.selIssue.text}</div>`;
+  const fLabel = FUEL_LABELS[S.vType.fuel];
+  $('sop-info').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong> ${fLabel} | ${S.selIssue.text}</div>`;
   S.sop={vehicle:`${v.make} ${v.model} ${v.year}`,system:SYS_INFO[S.selSys].he,issue:S.selIssue.text};
-  S.sopPath=[];S.sopCur=buildSopTree(S.selSys,S.selIssue.id);renderSop();
+  S.sopPath=[];
+  // For known issues, build a dynamic SOP
+  if(S.selIssue.isKnown){
+    S.sopCur = buildKnownIssueSop(S.selSys, S.selIssue.text, S.vType);
+  } else {
+    S.sopCur = buildSopTree(S.selSys, S.selIssue.id, S.vType);
+  }
+  renderSop();
 }
 function renderSop(){
   const c=$('sop-tree'),n=S.sopCur,h=$('sop-hist');
@@ -464,7 +546,7 @@ function goStep5(){
   });
   h+=`</div></div>`;
   h+=`<div class="smr"><h4 style="margin-bottom:12px">סיכום אבחון</h4><table style="width:100%;border-collapse:collapse">`;
-  h+=`<tr><td class="lbl">רכב:</td><td>${s.vehicle}</td></tr>`;
+  h+=`<tr><td class="lbl">רכב:</td><td>${s.vehicle} ${S.vType?FUEL_LABELS[S.vType.fuel]:''}</td></tr>`;
   h+=`<tr><td class="lbl">תסמין:</td><td>${s.issue}</td></tr>`;
   h+=`<tr><td class="lbl">מערכת:</td><td>${s.system}</td></tr>`;
   h+=`<tr><td class="lbl">אבחנה:</td><td>${d.diagnosis}</td></tr>`;
@@ -603,8 +685,104 @@ function buildYouTubeQuery(sys, diag, vehicle) {
   return queries;
 }
 
-// ── SOP Tree Builder (Symptom-based) ──────────────────────────────────────
-function buildSopTree(sys, symptomId) {
+// ── Build SOP for known (DB) issues ──────────────────────────────────────
+function buildKnownIssueSop(sys, issueText, vType) {
+  // Dynamic SOP for vehicle-specific known issues from DB
+  const fuelQ = vType.fuel==='diesel' ? 'דיזל' : vType.fuel==='hybrid' ? 'היברידי' : vType.fuel==='electric' ? 'חשמלי' : 'בנזין';
+  return {question:'האם הבעיה קבועה (קורה כל פעם)?',
+    yes:{question:'האם הבעיה מחמירה עם הזמן?',
+      yes:{diagnosis:issueText+' — בעיה מחמירה',urgency:'high',
+        solution:`בעיה ידועה ב${fuelQ}: ${issueText}. הבעיה מחמירה ודורשת טיפול דחוף. מומלץ לפנות למוסך המתמחה בדגם.`,
+        parts:[],repairSteps:[`1. חבר OBD2 וקרא קודי תקלה`,`2. חפש ביוטיוב: ${issueText}`,`3. בדוק אם יש ריקול (recall) לדגם`,`4. פנה למוסך מתמחה`]},
+      no:{diagnosis:issueText+' — בעיה יציבה',urgency:'medium',
+        solution:`בעיה ידועה ב${fuelQ}: ${issueText}. הבעיה יציבה אבל דורשת טיפול. ייתכן שיש פתרון ידוע לדגם.`,
+        parts:[],repairSteps:[`1. חבר OBD2 וקרא קודי תקלה`,`2. חפש בפורומים של הדגם`,`3. בדוק אם יש ריקול (recall)`,`4. טפל לפני שהבעיה מחמירה`]}},
+    no:{question:'האם הבעיה קשורה למזג אוויר או טמפרטורה?',
+      yes:{diagnosis:issueText+' — תלוי תנאים',urgency:'medium',
+        solution:`בעיה ידועה שמופיעה בתנאים מסוימים. ברכבי ${fuelQ} זה יכול להיות קשור לחיישנים או נוזלים.`,
+        parts:[],repairSteps:[`1. תעד מתי בדיוק קורה (קור/חום)`,`2. קרא קודי תקלה`,`3. בדוק רמות נוזלים`,`4. פנה למוסך עם התיעוד`]},
+      no:{diagnosis:issueText+' — לסירוגין',urgency:'medium',
+        solution:`בעיה ידועה שמופיעה לפעמים. בד"כ קשורה לחיווט או חיישן בתהליך כשל.`,
+        parts:[],repairSteps:[`1. תעד מתי קורה`,`2. קרא קודי תקלה — גם pending`,`3. בדוק חיווט ומחברים`,`4. פנה למוסך עם המידע`]}}
+  };
+}
+
+// ── SOP Tree Builder (Symptom-based, vehicle-type-aware) ─────────────────
+function buildSopTree(sys, symptomId, vType) {
+  const fuel = vType ? vType.fuel : 'petrol';
+
+  // ── Vehicle-type-specific SOP overrides ──────────────────
+  // Electric vehicles have completely different diagnostic paths
+  if(fuel === 'electric') {
+    const EV_SOP = {
+      eng_no_start: {question:'האם יש תצוגה/נורות בלוח המחוונים?',
+        yes:{question:'האם מופיעה הודעת שגיאה במסך?',
+          yes:{diagnosis:'שגיאת מערכת הנעה חשמלית',urgency:'high',solution:'שגיאה במערכת ההנעה החשמלית. דורש אבחון מחשב ייעודי לרכב חשמלי.',parts:['מודול הנעה','מהפך (inverter)'],repairSteps:['1. צלם את הודעת השגיאה','2. כבה והדלק מחדש','3. אם ממשיך — לא לנסוע','4. גרור למוסך מורשה לרכב חשמלי']},
+          no:{question:'האם הרכב ב-Ready אבל לא נוסע?',
+            yes:{diagnosis:'בעיה במודול הנעה או ממסר',urgency:'high',solution:'המערכת דולקת אבל אין הנעה. ייתכן ממסר הנעה או מהפך.',parts:['ממסר הנעה','מהפך'],repairSteps:['1. בדוק מצב Ready בלוח','2. נסה D ו-R','3. בדוק נתיכים ראשיים','4. פנה למוסך חשמלי']},
+            no:{diagnosis:'בעיית מצב Ready — מחשב או סוללת 12V',urgency:'medium',solution:'הרכב לא נכנס ל-Ready = סוללת 12V חלשה או תקלת מחשב.',parts:['סוללת 12V','מודול BMS'],repairSteps:['1. בדוק סוללת 12V (כן, גם לחשמלי יש!)','2. נסה התנעת עזר לסוללת 12V','3. אם עובד — החלף סוללת 12V','4. אם לא — תקלת BMS']}}},
+        no:{diagnosis:'סוללת 12V מתה — רכב חשמלי',urgency:'high',solution:'אין חשמל בכלל = סוללת 12V מתה. גם רכב חשמלי צריך סוללת 12V למערכות.',parts:['סוללת 12V'],repairSteps:['1. מצא סוללת 12V (בד"כ בתא מטען)','2. חבר התנעת עזר','3. אם עולה — החלף סוללת 12V','4. בדוק מטען סוללת 12V']}},
+      eng_vibrate: {question:'האם הרעידות בזמן נסיעה או בעמידה?',
+        yes:{diagnosis:'בעיה במוטור חשמלי או מיסבים',urgency:'high',solution:'רעידות ברכב חשמלי = מיסב מוטור או בעיית הנעה.',parts:['מיסב מוטור','גיר חד-הילוכי'],repairSteps:['1. בדוק צמיגים ואיזון','2. אם לא צמיגים — בדוק מוטור','3. האזן לרעש ממוטור','4. פנה למוסך חשמלי']},
+        no:{diagnosis:'משאבת קירור מוטור או מדחס מיזוג',urgency:'low',solution:'רעידות בעמידה ברכב חשמלי = משאבת קירור סוללה או מדחס.',parts:['משאבת קירור','מדחס מיזוג'],repairSteps:['1. בד"כ נורמלי — משאבת קירור סוללה','2. אם חזק מדי — בדוק מדחס','3. בדוק נוזל קירור סוללה','4. פנה למוסך אם מפריע']}},
+      eng_noise: {question:'האם הרעש בעיקר בנסיעה?',
+        yes:{diagnosis:'רעש מהנעה חשמלית — מיסב או גיר',urgency:'medium',solution:'רעש בנסיעה ברכב חשמלי = מיסב גלגל או גיר חד-הילוכי.',parts:['מיסב גלגל','שמן גיר חשמלי'],repairSteps:['1. בדוק צמיגים','2. האזן — מאיפה הרעש','3. בדוק מיסבי גלגלים','4. בדוק שמן גיר']},
+        no:{diagnosis:'משאבת קירור סוללה',urgency:'low',solution:'רעש בעמידה = משאבת קירור סוללה או מאוורר. בד"כ תקין.',parts:[],repairSteps:['1. רעש קל = נורמלי','2. אם חזק — בדוק משאבת קירור','3. בדוק מאוורר מדחס','4. פנה למוסך אם מחמיר']}},
+      elec_battery: {question:'האם טווח הנסיעה ירד משמעותית?',
+        yes:{question:'האם הרכב ישן (מעל 5 שנים)?',
+          yes:{diagnosis:'דגרדציה של סוללת הליתיום',urgency:'high',solution:'ירידה בטווח ברכב ישן = הסוללה הראשית מאבדת קיבולת. צריך בדיקת SOH.',parts:['סוללה ראשית (HV)','מודול BMS'],repairSteps:['1. בדוק SOH (State of Health) בסורק','2. מתחת ל-70% = שקול החלפה','3. בדוק איזון תאים','4. התייעץ עם מוסך חשמלי']},
+          no:{diagnosis:'בעיית BMS או תא סוללה בודד',urgency:'high',solution:'ירידה בטווח ברכב חדש = תא תקול או בעיית BMS.',parts:['מודול BMS','תא סוללה'],repairSteps:['1. בדוק באחריות','2. בדוק SOH','3. בדוק איזון תאים','4. פנה למוסך מורשה']}},
+        no:{diagnosis:'בעיית סוללת 12V או צרכן טפילי',urgency:'medium',solution:'סוללת 12V נחלשת = צרכן חשמלי שלא נכבה.',parts:['סוללת 12V'],repairSteps:['1. בדוק סוללת 12V','2. בדוק זרם מנוחה','3. חפש צרכן טפילי','4. החלף סוללת 12V אם ישנה']}}
+    };
+    if(EV_SOP[symptomId]) return EV_SOP[symptomId];
+  }
+
+  // ── Hybrid-specific overrides ──────────────────────────────
+  if(fuel === 'hybrid') {
+    const HYB_SOP = {
+      eng_no_start: {question:'האם יש "Ready" בלוח המחוונים?',
+        yes:{question:'האם המנוע לא נתפס (סוחב אבל לא מתניע)?',
+          yes:{diagnosis:'בעיית הצתה — חלק בנזיני',urgency:'high',solution:'מצב Ready קיים אבל המנוע לא מתניע = בעיה בחלק הבנזיני (מצתים, סלילים, דלק).',parts:['מצתים','סלילי הצתה','משאבת דלק'],repairSteps:['1. קרא קודי תקלה — היברידי מפיק קודים ייחודיים','2. בדוק מצתים — בהיברידי נשחקים מהר','3. בדוק לחץ דלק','4. בדוק סלילי הצתה']},
+          no:{diagnosis:'בעיית מערכת היברידית — HV או מהפך',urgency:'high',solution:'אם ה-Ready דולק אבל אין תגובה = בעיה במערכת ההיברידית.',parts:['מהפך (inverter)','סוללה היברידית','מודול HV'],repairSteps:['1. אל תיגע בכבלים כתומים!','2. קרא קודי תקלה','3. בדוק נורות אזהרה','4. פנה למוסך מורשה — מתח גבוה!']}},
+        no:{question:'האם נשמע סאונד כלשהו?',
+          yes:{diagnosis:'סוללת 12V חלשה — היברידי',urgency:'medium',solution:'גם היברידי צריך סוללת 12V לאתחל את המערכת!',parts:['סוללת 12V'],repairSteps:['1. סוללת 12V נמצאת בד"כ בתא מטען','2. חבר התנעת עזר','3. אם עולה — החלף סוללת 12V','4. הרכב יטען אותה אחרי זה']},
+          no:{diagnosis:'סוללת 12V מתה — היברידי',urgency:'high',solution:'אין שום תגובה = סוללת 12V מתה לגמרי.',parts:['סוללת 12V'],repairSteps:['1. מצא סוללת 12V','2. חבר מטען/התנעת עזר','3. החלף סוללת 12V','4. בדוק מערכת טעינה']}}},
+      eng_vibrate: {question:'האם הרעידות כשהמנוע בנזין דולק?',
+        yes:{question:'האם הרעידות חזקות וגם יש ירידה בהספק?',
+          yes:{diagnosis:'בעיית EGR או מצתים — היברידי',urgency:'medium',solution:'בהיברידי, המנוע נכבה ונדלק הרבה. מצתים נשחקים מהר ו-EGR מסתתם.',parts:['מצתים','שסתום EGR'],repairSteps:['1. החלף מצתים — בהיברידי כל 60K','2. נקה EGR','3. נקה מצערת','4. בדוק תושבות מנוע']},
+          no:{diagnosis:'תושבות מנוע — היברידי',urgency:'medium',solution:'בהיברידי, הפעלה/כיבוי תכוף של המנוע מרעידה תושבות יותר מהר.',parts:['תושבות מנוע'],repairSteps:['1. בדוק תושבות מנוע','2. בהיברידי נשחקות מהר יותר','3. החלף שחוקות','4. שים לב לרעידות ב-D']}},
+        no:{diagnosis:'משאבת מים חשמלית או מדחס מיזוג',urgency:'low',solution:'רעידות כשהמנוע כבוי = משאבת מים חשמלית או מדחס. בד"כ נורמלי.',parts:['משאבת מים חשמלית'],repairSteps:['1. רעידה קלה = נורמלי','2. אם חזקה — בדוק משאבת מים חשמלית','3. בדוק מדחס מיזוג','4. פנה למוסך אם מחמיר']}},
+      cool_overheat: {question:'האם ההתחממות כשהמנוע בנזין דולק?',
+        yes:{diagnosis:'מערכת קירור — חלק בנזיני',urgency:'critical',solution:'התחממות בהיברידי כשהמנוע דולק = בעיה במערכת קירור רגילה.',parts:['תרמוסטט','משאבת מים','נוזל קירור'],repairSteps:['1. עצור מיד!','2. בדוק רמת נוזל קירור','3. בדוק תרמוסטט','4. בהיברידי יש 2 מערכות קירור — זו של המנוע']},
+        no:{diagnosis:'קירור סוללה היברידית',urgency:'high',solution:'חימום יתר כשהמנוע כבוי = מערכת קירור סוללה תקולה.',parts:['מאוורר סוללה','נוזל קירור סוללה'],repairSteps:['1. בדוק מאוורר קירור סוללה','2. נקה פילטר אוויר סוללה','3. בדוק נוזל קירור סוללה','4. פנה למוסך — סוללה רגישה לחום!']}}
+    };
+    if(HYB_SOP[symptomId]) return HYB_SOP[symptomId];
+  }
+
+  // ── Diesel-specific overrides ──────────────────────────────
+  if(fuel === 'diesel') {
+    const DSL_SOP = {
+      eng_no_start: {question:'האם נורת הנר (גלואו פלאג) נדלקת ונכבית?',
+        yes:{question:'האם המנוע מסתובב אבל לא נתפס?',
+          yes:{question:'האם יש עשן כשמנסים להניע?',
+            yes:{diagnosis:'בעיית הזרקה — דיזל',urgency:'high',solution:'דיזל + עשן + לא נתפס = מזרקים סתומים או משאבת דלק חלשה.',parts:['מזרקים דיזל','משאבת לחץ גבוה','פילטר דלק'],repairSteps:['1. החלף פילטר דלק — הכי נפוץ','2. בדוק אם יש אוויר במערכת','3. בדוק לחץ משאבת דלק','4. בדוק מזרקים']},
+            no:{diagnosis:'אוויר במערכת דלק — דיזל',urgency:'high',solution:'דיזל בלי עשן ולא נתפס = אוויר נכנס למערכת. צריך לשחרר.',parts:['פילטר דלק','אטמי מערכת דלק'],repairSteps:['1. שחרר אוויר מפילטר דלק','2. הפעל משאבת דלק (מפתח ל-ON)','3. חפש דליפה שדרכה נכנס אוויר','4. בדוק צינורות חזרה מהמזרקים']}},
+          no:{diagnosis:'נרות חימום (גלואו פלאג) — דיזל',urgency:'medium',solution:'דיזל לא נתפס + המתנע מסתובב = נרות חימום תקועים, בעיקר בקור.',parts:['נרות חימום (סט)','ממסר נרות חימום'],repairSteps:['1. בדוק נרות חימום — מדוד התנגדות','2. בדוק ממסר נרות','3. החלף נרות שרופים','4. בדיזל ישן — החלף סט שלם']}},
+        no:{diagnosis:'ממסר נרות חימום או בעיית חשמל — דיזל',urgency:'high',solution:'נורת הנר לא נדלקת = ממסר נרות או נתיך שרוף.',parts:['ממסר נרות חימום','נתיך'],repairSteps:['1. בדוק נתיך נרות חימום','2. בדוק ממסר','3. בדוק חיווט לנרות','4. בדוק גם סוללה']}},
+      eng_noise: {question:'האם הרעש "דפיקות" (נוקינג) בהאצה?',
+        yes:{diagnosis:'מזרקים דיזל לא מכוילים',urgency:'high',solution:'דפיקות בדיזל = מזרקים שמזריקים יותר מדי או לא בזמן.',parts:['מזרקים דיזל','מחשב הזרקה'],repairSteps:['1. קרא קודי תקלה','2. בדוק כיול מזרקים בסורק','3. נקה/החלף מזרקים','4. בדוק טיימינג הזרקה']},
+        no:{diagnosis:'שרשרת טיימינג או טורבו — דיזל',urgency:'medium',solution:'רעש מתכתי בדיזל = שרשרת טיימינג משוחררת או טורבו עם בעיה.',parts:['שרשרת טיימינג','טורבו'],repairSteps:['1. האזן — מלמעלה=שרשרת, צד=טורבו','2. בדוק שמן — מספיק?','3. בדוק טורבו — משחק בציר?','4. בדוק שרשרת — רעש בקור?']}},
+      exh_smoke_black: {question:'האם העשן בכל מצב או רק בהאצה?',
+        yes:{diagnosis:'טורבו או מפה אוויר — דיזל',urgency:'high',solution:'עשן שחור בדיזל כל הזמן = יותר מדי דלק. טורבו, MAF, או EGR.',parts:['חיישן MAF','טורבו','שסתום EGR'],repairSteps:['1. נקה MAF','2. בדוק טורבו — לא שבור?','3. נקה/חסום EGR','4. בדוק צינור אינטרקולר']},
+        no:{diagnosis:'מזרקים מלוכלכים — דיזל',urgency:'medium',solution:'עשן שחור רק בהאצה = מזרקים שצריכים ניקוי.',parts:['מזרקים','תוסף ניקוי'],repairSteps:['1. הוסף תוסף ניקוי מזרקים','2. נסע 50 ק"מ בסיבובים גבוהים','3. אם ממשיך — נקה מזרקים מקצועי','4. בדוק פילטר אוויר']}},
+      exh_smoke_white: {question:'האם העשן נעלם אחרי כמה דקות?',
+        yes:{diagnosis:'עיבוי נורמלי — דיזל',urgency:'low',solution:'עשן לבן בהתנעה שנעלם = עיבוי מים. נורמלי בדיזל, במיוחד בקור.',parts:[],repairSteps:['1. נורמלי בבוקר קר','2. עקוב — אם לא נעלם = בעיה','3. בדוק רמת נוזל קירור','4. שום דבר לעשות']},
+        no:{diagnosis:'אטם ראש — דיזל',urgency:'critical',solution:'עשן לבן מתמשך בדיזל = נוזל קירור נכנס לצילינדרים. אטם ראש!',parts:['אטם ראש','נוזל קירור'],repairSteps:['1. בדוק רמת נוזל קירור — יורדת?','2. בדוק שמן — חלבי?','3. בדוק עם ערכת CO2 לנוזל','4. אל תנסע — סכנה למנוע!']}}
+    };
+    if(DSL_SOP[symptomId]) return DSL_SOP[symptomId];
+  }
+
+  // ── Default SOP (petrol / fallback) ────────────────────────
   const SOP = {
     // ═══════════════════════ ENGINE ═══════════════════════
     eng_no_start: {question:'האם נשמע סיבוב של מתנע (וורר-וורר)?',
