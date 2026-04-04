@@ -121,13 +121,13 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
 
   <!-- Step 2 -->
   <div id="step-2" class="card hid">
-    <div class="ct">שלב 2 — תיאור התקלה</div>
+    <div class="ct">שלב 2 — מה קורה עם הרכב?</div>
     <div id="v-sum"></div>
-    <div><label>תאר את הבעיה (או בחר מהרשימה)</label>
-      <div class="acw"><input type="text" id="iss-q" placeholder="לדוגמה: רעש בבלמים, דליפת שמן..." oninput="onSearch()" onfocus="onSearch()"><div class="acl hid" id="ac-list"></div></div>
+    <div><label>תאר במילים שלך מה הבעיה</label>
+      <div class="acw"><input type="text" id="iss-q" placeholder="לדוגמה: הרכב לא מניע, יש רעש מוזר, המנוע מתחמם..." oninput="onSearch()" onfocus="onSearch()"><div class="acl hid" id="ac-list"></div></div>
     </div>
-    <div style="margin-top:16px"><div class="ct" style="font-size:1rem">או בחר מערכת:</div><div class="sg" id="sys-grid"></div></div>
-    <div id="iss-sec" class="hid" style="margin-top:16px"><div class="ct" style="font-size:1rem" id="iss-t">בעיות שכיחות:</div><div class="il" id="iss-list"></div></div>
+    <div style="margin-top:16px"><div class="ct" style="font-size:1rem">או בחר לפי מערכת:</div><div class="sg" id="sys-grid"></div></div>
+    <div id="iss-sec" class="hid" style="margin-top:16px"><div class="ct" style="font-size:1rem" id="iss-t">מה אתה מרגיש/שומע/רואה?</div><div class="il" id="iss-list"></div></div>
     <div class="btns"><button class="btn btn-s" onclick="goStep(1)">חזרה</button><button class="btn btn-p" onclick="goStep3()" id="btn2" disabled>התחל אבחון</button></div>
   </div>
 
@@ -159,18 +159,110 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
 
 <script>
 // ── Data & State ───────────────────────────────────────────────────────────
-let DB = null; // { MAKE: { Model: { "2020": { engine:[...], ... }}}}
+let DB = null;
 const S = { step:1, mode:'plate', vehicle:null, systems:null, selSys:null, selIssue:null, selIdx:null, sop:null, sopPath:[], sopCur:null, diag:null };
 
 const SYS_INFO = {
-  engine:{he:'מערכת המנוע',ic:'🔧'}, cooling:{he:'מערכת קירור',ic:'❄️'},
-  electrical:{he:'מערכת חשמל',ic:'⚡'}, fuel:{he:'מערכת דלק',ic:'⛽'},
-  exhaust:{he:'פליטה (אגזוז)',ic:'💨'}, transmission:{he:'מערכת הילוכים',ic:'⚙️'},
-  suspension:{he:'מערכת מתלים',ic:'🔩'}, steering:{he:'מערכת היגוי',ic:'🎯'},
-  brakes:{he:'מערכת בלמים',ic:'🛑'}, electronics:{he:'אלקטרוניקה',ic:'📟'}
+  engine:{he:'מנוע',ic:'🔧'}, cooling:{he:'חימום וקירור',ic:'❄️'},
+  electrical:{he:'חשמל ואנרגיה',ic:'⚡'}, fuel:{he:'דלק',ic:'⛽'},
+  exhaust:{he:'אגזוז ופליטה',ic:'💨'}, transmission:{he:'גיר והילוכים',ic:'⚙️'},
+  suspension:{he:'נוחות נסיעה',ic:'🔩'}, steering:{he:'הגה וכיוון',ic:'🎯'},
+  brakes:{he:'בלמים',ic:'🛑'}, electronics:{he:'מחשב ואלקטרוניקה',ic:'📟'}
 };
 const SYS_ORDER = Object.keys(SYS_INFO);
 const URG_HE = { critical:'קריטי — טפל מיד!', high:'גבוה — טפל בהקדם', medium:'בינוני', low:'נמוך — עקוב' };
+
+// ══════════════════════════════════════════════════════════════════════════
+// SYMPTOMS DICTIONARY — plain Hebrew symptoms per system
+// These are what the mechanic sees/hears/feels — NOT technical fault names
+// ══════════════════════════════════════════════════════════════════════════
+const SYMPTOMS = {
+  engine: [
+    {id:'eng_no_start', text:'הרכב לא מניע'},
+    {id:'eng_vibrate', text:'המנוע רועד או לא יציב'},
+    {id:'eng_noise', text:'יש רעש חריג מהמנוע'},
+    {id:'eng_power_loss', text:'הרכב מאבד כוח / עולה חלש'},
+    {id:'eng_smoke', text:'יוצא עשן מהמנוע או מהאגזוז'},
+    {id:'eng_check_light', text:'נורית מנוע (צ\'ק אנג\'ין) דולקת'},
+    {id:'eng_oil_leak', text:'יש כתמי שמן מתחת לרכב'},
+    {id:'eng_stall', text:'המנוע נכבה תוך כדי נסיעה'},
+    {id:'eng_high_fuel', text:'הרכב שורף יותר מדי דלק'},
+    {id:'eng_smell', text:'יש ריח שריפה או ריח מוזר מהמנוע'}
+  ],
+  cooling: [
+    {id:'cool_overheat', text:'המנוע מתחמם יותר מדי'},
+    {id:'cool_leak', text:'נוזל דולף מתחת לרכב (ירוק/כתום/ורוד)'},
+    {id:'cool_heater', text:'החימום בתוך הרכב לא עובד'},
+    {id:'cool_steam', text:'יוצא אדים מהמכסה'},
+    {id:'cool_gauge', text:'מחוג הטמפרטורה מתנהג מוזר'},
+    {id:'cool_ac', text:'המזגן לא מקרר מספיק'}
+  ],
+  electrical: [
+    {id:'elec_no_start', text:'הרכב לא מניע — לוחצים ואין תגובה'},
+    {id:'elec_battery', text:'הסוללה מתרוקנת מהר'},
+    {id:'elec_lights', text:'אורות מהבהבים או לא עובדים'},
+    {id:'elec_windows', text:'חלונות חשמליים לא עובדים'},
+    {id:'elec_fuse', text:'משהו בחשמל פתאום הפסיק לעבוד'},
+    {id:'elec_starter', text:'נשמע צליל קליק אבל המנוע לא מסתובב'}
+  ],
+  fuel: [
+    {id:'fuel_smell', text:'יש ריח של דלק'},
+    {id:'fuel_consumption', text:'הרכב שורף הרבה דלק'},
+    {id:'fuel_stutter', text:'המנוע מגמגם או מפספס'},
+    {id:'fuel_hard_start', text:'קשה להתניע, צריך כמה ניסיונות'},
+    {id:'fuel_stall', text:'המנוע נכבה ברגלנטי / בעצירה'},
+    {id:'fuel_gauge', text:'מד הדלק לא מראה נכון'}
+  ],
+  exhaust: [
+    {id:'exh_noise', text:'רעש חזק מתחת לרכב'},
+    {id:'exh_smoke_black', text:'עשן שחור מהאגזוז'},
+    {id:'exh_smoke_white', text:'עשן לבן מהאגזוז'},
+    {id:'exh_smoke_blue', text:'עשן כחול מהאגזוז'},
+    {id:'exh_smell', text:'ריח ביצים רקובות / ריח חריף'},
+    {id:'exh_rattle', text:'צליל שרשרת/רעש ממתכת מהאגזוז'}
+  ],
+  transmission: [
+    {id:'trans_shift_hard', text:'הילוכים עוברים בקושי או בחבטה'},
+    {id:'trans_slip', text:'המנוע סוחב אבל הרכב לא זז כמו שצריך'},
+    {id:'trans_noise', text:'רעש מוזר מהגיר'},
+    {id:'trans_leak', text:'כתם שמן אדום/חום מתחת לרכב'},
+    {id:'trans_stuck', text:'הגיר תקוע — לא עובר הילוך'},
+    {id:'trans_clutch', text:'המצמד קשה או גבוה מדי (ידני)'}
+  ],
+  suspension: [
+    {id:'susp_bump', text:'חבטות / רעש על כל מהמורה'},
+    {id:'susp_drift', text:'הרכב נוטה / סוחף לצד'},
+    {id:'susp_squeak', text:'חריקות בזמן נסיעה'},
+    {id:'susp_bounce', text:'הרכב קופץ אחרי מהמורה'},
+    {id:'susp_uneven', text:'הרכב יושב נמוך מצד אחד'},
+    {id:'susp_vibrate', text:'רעידות בנסיעה מהירה'}
+  ],
+  steering: [
+    {id:'steer_heavy', text:'ההגה כבד / קשה לסובב'},
+    {id:'steer_noise', text:'רעש בזמן סיבוב הגה'},
+    {id:'steer_vibrate', text:'ההגה רועד'},
+    {id:'steer_pull', text:'הרכב מושך לצד'},
+    {id:'steer_loose', text:'ההגה רופף / לא מגיב'},
+    {id:'steer_click', text:'נקישות בסיבוב'}
+  ],
+  brakes: [
+    {id:'brk_noise', text:'רעש חריקה / צרצור בבלימה'},
+    {id:'brk_vibrate', text:'רעידות כשבולמים'},
+    {id:'brk_soft', text:'דוושת בלם רכה — צריך ללחוץ חזק'},
+    {id:'brk_pull', text:'הרכב נוטה לצד בבלימה'},
+    {id:'brk_long', text:'מרחק בלימה ארוך מהרגיל'},
+    {id:'brk_light', text:'נורית בלמים דולקת'},
+    {id:'brk_smell', text:'ריח שריפה מהגלגלים'}
+  ],
+  electronics: [
+    {id:'eln_warning', text:'נורית אזהרה דולקת (לא מנוע)'},
+    {id:'eln_screen', text:'מסך מולטימדיה לא עובד / תקוע'},
+    {id:'eln_sensors', text:'חיישני עזר (חניה/מצלמה) לא עובדים'},
+    {id:'eln_abs', text:'נורית ABS דולקת'},
+    {id:'eln_airbag', text:'נורית כרית אוויר דולקת'},
+    {id:'eln_random', text:'תקלות חשמל אקראיות שבאות והולכות'}
+  ]
+};
 
 // ── Init ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -265,111 +357,49 @@ function onYear(){
 }
 function chk1(){$('btn1').disabled=!S.vehicle;}
 
-// ── Step 2 ─────────────────────────────────────────────────────────────────
+// ── Step 2: Symptom-based ──────────────────────────────────────────────────
 function goStep2(){
   if(!S.vehicle)return;goStep(2);
   const v=S.vehicle;
   $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}</div>`;
-  S.systems = findVehicleIssues(v.make, v.model, v.year);
   renderSystems();
-}
-function findVehicleIssues(make, model, year) {
-  if (!DB) return getGenericIssues();
-  // Find make (case-insensitive)
-  let dbMake = DB[make];
-  if (!dbMake) {
-    const makeUpper = make.toUpperCase();
-    for (const k of Object.keys(DB)) {
-      if (k.toUpperCase() === makeUpper) { dbMake = DB[k]; break; }
-    }
-  }
-  if (!dbMake) return getGenericIssues();
-  // Find model (case-insensitive)
-  let dbModel = dbMake[model];
-  if (!dbModel) {
-    const modelUpper = model.toUpperCase();
-    for (const k of Object.keys(dbMake)) {
-      if (k.toUpperCase() === modelUpper) { dbModel = dbMake[k]; break; }
-    }
-  }
-  // 1. Exact model found
-  if (dbModel) {
-    if (dbModel[year]) return dbModel[year];
-    const years = Object.keys(dbModel).map(Number).sort((a,b)=>Math.abs(a-year)-Math.abs(b-year));
-    if (years.length) return dbModel[String(years[0])];
-  }
-  // 2. Partial model name match
-  const modelLower = model.toLowerCase();
-  for (const m of Object.keys(dbMake)) {
-    if (m.toLowerCase().includes(modelLower) || modelLower.includes(m.toLowerCase())) {
-      const yrs = Object.keys(dbMake[m]).sort((a,b)=>Math.abs(Number(a)-year)-Math.abs(Number(b)-year));
-      if (yrs.length) return dbMake[m][yrs[0]];
-    }
-  }
-  // 4. Any model from same make, closest year
-  const allModels = Object.keys(DB[make]);
-  if (allModels.length) {
-    let best = null, bestDiff = 9999;
-    for (const m of allModels) {
-      for (const y of Object.keys(DB[make][m])) {
-        const diff = Math.abs(Number(y) - year);
-        if (diff < bestDiff) { bestDiff = diff; best = DB[make][m][y]; }
-      }
-    }
-    if (best) return best;
-  }
-  return getGenericIssues();
-}
-function getGenericIssues() {
-  return {
-    engine: ["רעש חריג מהמנוע","דליפת שמן","חוסר כוח בעליות","צריכת דלק מוגברת","רעידות בסיבובים נמוכים"],
-    brakes: ["רעש בבלמים","רעידות בעת בלימה","דוושת בלם רכה","בלאי מוקדם של רפידות"],
-    electrical: ["בעיות סוללה","תקלות תאורה","מסך מולטימדיה לא מגיב","חיישנים תקולים"],
-    cooling: ["חימום יתר","דליפת נוזל קירור","מאוורר לא עובד"],
-    fuel: ["צריכת דלק גבוהה","ריח דלק","בעיות התנעה"],
-    transmission: ["העברת הילוכים קשה","רעש בהילוכים","דליפת שמן גיר"],
-    exhaust: ["רעש מהאגזוז","עשן שחור","ריח מוזר"],
-    steering: ["כבדות בהגה","רעש בסיבובים","רעידות בהגה"],
-    suspension: ["חריקות ממתלים","נסיעה קשה","רכב נוטה לצד"],
-    electronics: ["נורית אזהרה דולקת","בעיות במערכת ההצתה","חיישן חמצן תקול"]
-  };
 }
 function renderSystems(){
   const g=$('sys-grid');g.innerHTML='';
   SYS_ORDER.forEach(k=>{
-    const info=SYS_INFO[k],issues=S.systems[k]||[];
+    const info=SYS_INFO[k], syms=SYMPTOMS[k]||[];
     const d=document.createElement('div');d.className='sc2'+(S.selSys===k?' sel':'');
-    d.innerHTML=`<div class="ic">${info.ic}</div><div class="nm">${info.he}</div><div class="cn">${issues.length} בעיות</div>`;
+    d.innerHTML=`<div class="ic">${info.ic}</div><div class="nm">${info.he}</div><div class="cn">${syms.length} תסמינים</div>`;
     d.onclick=()=>selSys(k);g.appendChild(d);
   });
 }
 function selSys(k){
   S.selSys=k;S.selIssue=null;S.selIdx=null;renderSystems();
-  const issues=S.systems[k]||[];
-  if(!issues.length){$('iss-sec').classList.add('hid');chk2();return;}
-  $('iss-t').textContent='בעיות שכיחות — '+SYS_INFO[k].he+':';
+  const syms=SYMPTOMS[k]||[];
+  if(!syms.length){$('iss-sec').classList.add('hid');chk2();return;}
+  $('iss-t').textContent='מה קורה? — '+SYS_INFO[k].he+':';
   const l=$('iss-list');l.innerHTML='';
-  issues.forEach((iss,i)=>{
+  syms.forEach((sym,i)=>{
     const d=document.createElement('div');d.className='ii';
-    d.innerHTML=`<div class="in">${i+1}</div><div>${iss}</div>`;
-    d.onclick=()=>selIss(k,iss,i);l.appendChild(d);
+    d.innerHTML=`<div class="in">${i+1}</div><div>${sym.text}</div>`;
+    d.onclick=()=>selIss(k,sym,i);l.appendChild(d);
   });
   $('iss-sec').classList.remove('hid');chk2();
 }
-function selIss(sys,iss,idx){
-  S.selSys=sys;S.selIssue=iss;S.selIdx=idx;
+function selIss(sys,sym,idx){
+  S.selSys=sys;S.selIssue=sym;S.selIdx=idx;
   document.querySelectorAll('.ii').forEach((el,i)=>el.classList.toggle('sel',i===idx));chk2();
 }
 function onSearch(){
   const q=$('iss-q').value.trim(),el=$('ac-list');
-  if(!q||!S.systems){el.classList.add('hid');return;}
+  if(!q){el.classList.add('hid');return;}
   const items=[];
-  SYS_ORDER.forEach(k=>{(S.systems[k]||[]).forEach((iss,i)=>{if(iss.includes(q))items.push({sys:k,iss,idx:i});});});
+  SYS_ORDER.forEach(k=>{(SYMPTOMS[k]||[]).forEach((sym,i)=>{if(sym.text.includes(q))items.push({sys:k,sym,idx:i});});});
   if(!items.length){el.classList.add('hid');return;}
   el.innerHTML='';items.slice(0,10).forEach(it=>{
     const d=document.createElement('div');d.className='aci';
-    d.innerHTML=`<span class="sb2">${SYS_INFO[it.sys].ic} ${SYS_INFO[it.sys].he}</span>${it.iss}`;
-    d.onclick=()=>{selIss(it.sys,it.iss,it.idx);selSys(it.sys);$('iss-q').value=it.iss;el.classList.add('hid');};
+    d.innerHTML=`<span class="sb2">${SYS_INFO[it.sys].ic} ${SYS_INFO[it.sys].he}</span>${it.sym.text}`;
+    d.onclick=()=>{selIss(it.sys,it.sym,it.idx);selSys(it.sys);$('iss-q').value=it.sym.text;el.classList.add('hid');};
     el.appendChild(d);
   });el.classList.remove('hid');
 }
@@ -379,9 +409,9 @@ function chk2(){$('btn2').disabled=!S.selIssue;}
 function goStep3(){
   if(!S.selIssue)return;goStep(3);
   const v=S.vehicle;
-  $('sop-info').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong> | ${S.selIssue}</div>`;
-  S.sop={vehicle:`${v.make} ${v.model} ${v.year}`,system:SYS_INFO[S.selSys].he,issue:S.selIssue};
-  S.sopPath=[];S.sopCur=buildSopTree(S.selSys,S.selIssue);renderSop();
+  $('sop-info').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong> | ${S.selIssue.text}</div>`;
+  S.sop={vehicle:`${v.make} ${v.model} ${v.year}`,system:SYS_INFO[S.selSys].he,issue:S.selIssue.text};
+  S.sopPath=[];S.sopCur=buildSopTree(S.selSys,S.selIssue.id);renderSop();
 }
 function renderSop(){
   const c=$('sop-tree'),n=S.sopCur,h=$('sop-hist');
@@ -411,14 +441,23 @@ function goStep5(){
   const costs={engine:{min:500,max:8000},cooling:{min:300,max:4000},electrical:{min:200,max:3000},fuel:{min:300,max:5000},exhaust:{min:400,max:6000},transmission:{min:500,max:12000},suspension:{min:300,max:4000},steering:{min:300,max:5000},brakes:{min:200,max:3000},electronics:{min:200,max:4000}};
   const cost=costs[S.selSys]||{min:300,max:5000};
   let h='<div class="fi">';
-  h+=`<div class="ds"><h4>פתרון מומלץ</h4><p style="font-size:1.1rem;font-weight:600">${d.solution}</p></div>`;
+  h+=`<div class="ds"><h4>אבחנה</h4><p style="font-size:1.15rem;font-weight:700;color:var(--g800)">${d.diagnosis}</p></div>`;
+  h+=`<div class="ds"><h4>דחיפות</h4><span class="ub ${u}">${URG_HE[u]}</span></div>`;
+  h+=`<div class="ds"><h4>הסבר</h4><p style="font-size:1rem">${d.solution}</p></div>`;
+  // Repair steps
+  if(d.repairSteps&&d.repairSteps.length){
+    h+='<div class="ds"><h4>שלבי טיפול</h4><div style="background:var(--g50);border-radius:8px;padding:16px;margin-top:6px">';
+    d.repairSteps.forEach((step,i)=>{
+      h+=`<div style="padding:8px 0;${i<d.repairSteps.length-1?'border-bottom:1px solid var(--g200)':''}"><span style="font-weight:700;color:var(--pri)">${step}</span></div>`;
+    });
+    h+='</div></div>';
+  }
   if(d.parts&&d.parts.length){h+='<div class="ds"><h4>חלקים נדרשים</h4><div class="pl">';d.parts.forEach(p=>{h+=`<span class="pt">${p}</span>`;});h+='</div></div>';}
   h+=`<div class="ds"><h4>הערכת עלות</h4><div class="cr"><span>${cost.min} ₪</span><div class="crb"><div class="crf" style="width:60%"></div></div><span>${cost.max} ₪</span></div></div>`;
-  h+=`<div class="ds"><h4>דחיפות</h4><span class="ub ${u}">${URG_HE[u]}</span></div>`;
   h+=`<div class="smr"><h4 style="margin-bottom:12px">סיכום אבחון</h4><table style="width:100%;border-collapse:collapse">`;
   h+=`<tr><td class="lbl">רכב:</td><td>${s.vehicle}</td></tr>`;
+  h+=`<tr><td class="lbl">תסמין:</td><td>${s.issue}</td></tr>`;
   h+=`<tr><td class="lbl">מערכת:</td><td>${s.system}</td></tr>`;
-  h+=`<tr><td class="lbl">תקלה:</td><td>${s.issue}</td></tr>`;
   h+=`<tr><td class="lbl">אבחנה:</td><td>${d.diagnosis}</td></tr>`;
   h+=`<tr><td class="lbl">פתרון:</td><td>${d.solution}</td></tr>`;
   if(d.parts&&d.parts.length)h+=`<tr><td class="lbl">חלקים:</td><td>${d.parts.join(', ')}</td></tr>`;
@@ -426,156 +465,356 @@ function goStep5(){
   $('sol-det').innerHTML=h;
 }
 
-// ── SOP Tree Builder ───────────────────────────────────────────────────────
-function buildSopTree(sys, issue) {
-  const trees = {
-    engine: {
-      'דליפ': {question:'האם יש כתמי שמן מתחת לרכב?',
-        yes:{question:'האם הכתמים בצבע כהה (שמן מנוע)?',
-          yes:{question:'האם רמת השמן ירדה מתחת למינימום?',
-            yes:{diagnosis:'דליפת שמן משמעותית',urgency:'high',solution:'יש לאתר מקור הדליפה — ייתכן גסקט ראש מצלינדר, אטם כרטר, או מכסה שסתומים.',parts:['גסקט ראש מצלינדר','אטם כרטר שמן','מכסה שסתומים + אטם']},
-            no:{diagnosis:'דליפת שמן קלה',urgency:'medium',solution:'נטר רמת שמן. אם הדליפה מתגברת — יש לטפל.',parts:['אטם מכסה שסתומים','רינג שמן']}},
-          no:{question:'האם הנוזל בצבע ירוק/כתום (נוזל קירור)?',
-            yes:{diagnosis:'דליפת נוזל קירור מהמנוע',urgency:'high',solution:'בדוק גסקט ראש מצלינדר ומשאבת מים.',parts:['גסקט ראש מצלינדר','משאבת מים']},
-            no:{diagnosis:'דליפת נוזל הילוכים או הגה כוח',urgency:'medium',solution:'בדוק צינורות הגה כוח ומארז הילוכים.',parts:['אטמי הילוכים','צינור הגה כוח']}}},
-        no:{question:'האם מורגשת ריח שמן שרוף?',
-          yes:{diagnosis:'דליפת שמן על מניפולד פליטה',urgency:'medium',solution:'אתר דליפה ותקן — סכנת שריפה.',parts:['אטם מכסה שסתומים','אטם מניפולד']},
-          no:{diagnosis:'ייתכן דליפה פנימית (שמן לתא שריפה)',urgency:'high',solution:'בדוק רמת שמן ובדיקת לחץ צילינדרים.',parts:['טבעות בוכנה','מכווני שסתומים']}}},
-      'הצתה': {question:'האם המנוע מתקשה להתניע?',
-        yes:{question:'האם נשמע סיבוב מתנע אבל המנוע לא נתפס?',
-          yes:{question:'האם הוחלפו מצתים לאחרונה?',
-            yes:{diagnosis:'תקלה בסלילי הצתה או מודול הצתה',urgency:'high',solution:'בדוק סלילי הצתה וכבלים, החלף לפי הצורך.',parts:['סליל הצתה','כבלי מצתים','מודול הצתה']},
-            no:{diagnosis:'מצתים שחוקים',urgency:'medium',solution:'החלף מצתים ובדוק מרווח ניצוץ.',parts:['מצתים (סט)','כבלי מצתים']}},
-          no:{diagnosis:'בעיה במתנע או סוללה',urgency:'high',solution:'בדוק מתח סוללה ומתנע.',parts:['מתנע','סוללה']}},
-        no:{question:'האם יש ירידה בביצועי המנוע או פספוסים?',
-          yes:{diagnosis:'הצתה לא סדירה',urgency:'medium',solution:'בדוק מצתים, סלילי הצתה, ומזרקים.',parts:['מצתים','סלילי הצתה','מזרקים']},
-          no:{diagnosis:'בעיית הצתה קלה — נטר',urgency:'low',solution:'עקוב אחרי ביצועי מנוע. אם חוזר — בדוק בקומפיוטר.',parts:[]}}},
-      'חיישן': {question:'האם נדלקה נורית CHECK ENGINE?',
-        yes:{question:'האם יש שינוי בביצועי המנוע?',
-          yes:{diagnosis:'חיישן תקול המשפיע על ביצועים',urgency:'high',solution:'קרא קודי OBD2 וזהה חיישן ספציפי.',parts:['חיישן O2','חיישן MAF','חיישן MAP']},
-          no:{diagnosis:'חיישן תקול ללא השפעה מיידית',urgency:'medium',solution:'קרא קודי תקלה. ייתכן חיישן פליטה.',parts:['חיישן חמצן','חיישן טמפרטורה']}},
-        no:{question:'האם צריכת הדלק עלתה?',
-          yes:{diagnosis:'חיישן תקול הגורם לצריכה מוגברת',urgency:'medium',solution:'בדוק חיישן MAF/MAP וחיישני חמצן.',parts:['חיישן MAF','חיישן O2']},
-          no:{diagnosis:'ייתכן חיישן בקצה חייו',urgency:'low',solution:'בדיקת קודי תקלה מומלצת בטיפול הבא.',parts:[]}}},
-      '_': {question:'האם נורית CHECK ENGINE דולקת?',
-        yes:{question:'האם הנורית מהבהבת?',
-          yes:{diagnosis:'פספוסי הצתה — סכנה לממיר קטליטי',urgency:'critical',solution:'עצור בהקדם! נורית מהבהבת = נזק אפשרי לממיר.',parts:['מצתים','סלילי הצתה','ממיר קטליטי']},
-          no:{diagnosis:'תקלת מנוע — יש לקרוא קודים',urgency:'medium',solution:'קרא קודי OBD2 וטפל בהתאם.',parts:[]}},
-        no:{question:'האם יש רעש חריג מהמנוע?',
-          yes:{diagnosis:'חשד לבלאי מכני',urgency:'medium',solution:'בדיקת מכונאי מומלצת.',parts:['רצועת טיימינג','מסבי מנוע']},
-          no:{diagnosis:'בעיית מנוע כללית',urgency:'low',solution:'נטר ביצועים. אם חוזר — בדוק בקומפיוטר.',parts:[]}}}
-    },
-    cooling: {
-      'דליפ': {question:'האם רמת נוזל הקירור ירדה?',
-        yes:{question:'האם יש כתם ירוק/כתום מתחת לרכב?',
-          yes:{diagnosis:'דליפת נוזל קירור חיצונית',urgency:'high',solution:'בדוק רדיאטור, צינורות, ומשאבת מים.',parts:['רדיאטור','צינורות קירור','משאבת מים']},
-          no:{question:'האם יש אדים לבנים מהאגזוז?',
-            yes:{diagnosis:'דליפה פנימית — גסקט ראש מצלינדר',urgency:'critical',solution:'אל תנסע! חשד לפריצת גסקט. גרור למוסך.',parts:['גסקט ראש מצלינדר','בורגי ראש']},
-            no:{diagnosis:'דליפה איטית',urgency:'medium',solution:'מלא נוזל ועקוב. בדוק מכסה רדיאטור.',parts:['מכסה רדיאטור']}}},
-        no:{question:'האם מחוג הטמפרטורה עולה?',
-          yes:{diagnosis:'תרמוסטט תקוע או מאוורר תקול',urgency:'high',solution:'בדוק תרמוסטט ומאוורר קירור.',parts:['תרמוסטט','מאוורר קירור','ממסר']},
-          no:{diagnosis:'מערכת קירור תקינה כרגע',urgency:'low',solution:'החלף נוזל קירור לפי יצרן.',parts:[]}}},
-      '_': {question:'האם מחוג הטמפרטורה עולה מעבר לרגיל?',
-        yes:{question:'האם זה בעיקר בנסיעה בעיר?',
-          yes:{diagnosis:'בעיית מאוורר או זרימת אוויר',urgency:'high',solution:'בדוק מאוורר קירור, ממסר, וחיישן טמפרטורה.',parts:['מאוורר קירור','ממסר','חיישן טמפרטורה']},
-          no:{diagnosis:'בעיית זרימת נוזל',urgency:'high',solution:'בדוק תרמוסטט ומשאבת מים.',parts:['תרמוסטט','משאבת מים']}},
-        no:{question:'האם המזגן פחות קר?',
-          yes:{diagnosis:'קונדנסור או מאוורר משני',urgency:'medium',solution:'בדוק קונדנסור ומאוורר.',parts:['קונדנסור','מאוורר משני']},
-          no:{diagnosis:'מערכת קירור תקינה',urgency:'low',solution:'בדוק רמת נוזל ומצב צינורות.',parts:[]}}}
-    },
-    brakes: {
-      'בלאי|שחיק': {question:'האם נשמע צרצור/חריקה בבלימה?',
-        yes:{question:'האם הצרצור קבוע (גם ללא בלם)?',
-          yes:{diagnosis:'רפידות שחוקות לגמרי — מתכת על מתכת',urgency:'critical',solution:'החלף רפידות ודיסקים מיד! סכנת בטיחות.',parts:['רפידות בלם','דיסקי בלם','חיישני בלאי']},
-          no:{diagnosis:'רפידות בשלבי בלאי',urgency:'high',solution:'החלף רפידות. בדוק עובי דיסקים.',parts:['רפידות בלם (סט)','דיסקי בלם']}},
-        no:{question:'האם יש רעידות בהגה בבלימה?',
-          yes:{diagnosis:'דיסקי בלם עקומים',urgency:'high',solution:'הקזה או החלפת דיסקים.',parts:['דיסקי בלם','רפידות בלם']},
-          no:{diagnosis:'בלאי נורמלי',urgency:'medium',solution:'החלף רפידות בטיפול הקרוב.',parts:['רפידות בלם']}}},
-      '_': {question:'האם דוושת הבלם רכה מהרגיל?',
-        yes:{question:'האם צריך ללחוץ חזק יותר?',
-          yes:{diagnosis:'דליפה הידראולית או בוסטר',urgency:'critical',solution:'בדוק נוזל בלמים ודליפות. אל תנסע!',parts:['נוזל בלמים','צילינדר ראשי','צינורות בלם']},
-          no:{diagnosis:'אוויר במערכת הבלמים',urgency:'high',solution:'שחרור אוויר (bleeding).',parts:['נוזל בלמים']}},
-        no:{question:'האם הרכב נוטה לצד בבלימה?',
-          yes:{diagnosis:'קליפר תקוע או בלאי לא אחיד',urgency:'high',solution:'בדוק קליפרים ורפידות.',parts:['קליפר בלם','רפידות בלם']},
-          no:{diagnosis:'מערכת בלמים תקינה',urgency:'low',solution:'החלף נוזל בלמים כל שנתיים.',parts:[]}}}
-    },
-    transmission: {
-      '_': {question:'האם יש בעיה בהחלפת הילוכים?',
-        yes:{question:'האם ההילוכים "מחליקים"?',
-          yes:{diagnosis:'בלאי פנימי בגיר',urgency:'critical',solution:'בדיקת גיר מקצועית. ייתכן שיפוץ.',parts:['שמן גיר','פילטר גיר','שיפוץ גיר']},
-          no:{question:'האם יש חבטה בהעברת הילוך?',
-            yes:{diagnosis:'בעיית סולנואיד או שמן',urgency:'high',solution:'החלף שמן גיר ופילטר. בדוק סולנואידים.',parts:['שמן ATF','פילטר גיר','סולנואיד']},
-            no:{diagnosis:'ייתכן צורך בכיול גיר',urgency:'medium',solution:'כיול גיר בקומפיוטר.',parts:[]}}},
-        no:{question:'האם יש דליפת שמן גיר?',
-          yes:{diagnosis:'דליפת שמן הילוכים',urgency:'high',solution:'אתר דליפה ובדוק אטמים.',parts:['אטם גיר','שמן גיר']},
-          no:{diagnosis:'מערכת הילוכים תקינה',urgency:'low',solution:'החלף שמן גיר לפי יצרן.',parts:[]}}}
-    },
-    electrical: {
-      '_': {question:'האם הבעיה קשורה להתנעה?',
-        yes:{question:'האם הסוללה חדשה (< שנה)?',
-          yes:{diagnosis:'בעיית אלטרנטור או חיבורים',urgency:'high',solution:'בדוק מתח טעינה מאלטרנטור (13.5-14.5V).',parts:['אלטרנטור','רצועה','כבלי סוללה']},
-          no:{diagnosis:'סוללה חלשה',urgency:'medium',solution:'בדוק מתח סוללה. מתחת ל-12V — החלף.',parts:['סוללה','קלמפים']}},
-        no:{question:'האם יש תקלה בתאורה/חלונות/חשמל?',
-          yes:{diagnosis:'בעיה בנתיכים או חיווט',urgency:'medium',solution:'בדוק נתיכים ותיבת נתיכים.',parts:['נתיכים','ממסרים']},
-          no:{diagnosis:'מערכת חשמל תקינה',urgency:'low',solution:'בדוק חיווט בטיפול הבא.',parts:[]}}}
-    },
-    fuel: {
-      '_': {question:'האם צריכת הדלק עלתה משמעותית?',
-        yes:{question:'האם מורגש ריח דלק חזק?',
-          yes:{diagnosis:'דליפת דלק — סכנה!',urgency:'critical',solution:'בדוק צינורות דלק ומזרקים מיד.',parts:['צינורות דלק','מזרקים','אטם מכסה דלק']},
-          no:{diagnosis:'מזרקים מלוכלכים או חיישן תקול',urgency:'medium',solution:'ניקוי מזרקים ובדיקת חיישנים.',parts:['מזרקים','פילטר דלק','חיישן O2']}},
-        no:{question:'האם המנוע מפספס?',
-          yes:{diagnosis:'בעיית אספקת דלק',urgency:'high',solution:'בדוק משאבת דלק, פילטר, ולחץ.',parts:['משאבת דלק','פילטר דלק','וסת לחץ']},
-          no:{diagnosis:'מערכת דלק תקינה',urgency:'low',solution:'החלף פילטר דלק לפי יצרן.',parts:[]}}}
-    },
-    exhaust: {
-      '_': {question:'האם נשמע רעש חזק מהאגזוז?',
-        yes:{question:'האם הרעש מקדמת הרכב?',
-          yes:{diagnosis:'סדק במניפולד פליטה',urgency:'high',solution:'בדוק מניפולד וצמוד פליטה.',parts:['גסקט מניפולד','צמוד פליטה']},
-          no:{diagnosis:'חור באגזוז',urgency:'medium',solution:'החלף חלק פגום.',parts:['צינור אגזוז','משתיק קול']}},
-        no:{question:'האם נדלקה CHECK ENGINE?',
-          yes:{diagnosis:'ממיר קטליטי או חיישן O2',urgency:'high',solution:'קרא קודי תקלה.',parts:['ממיר קטליטי','חיישן O2']},
-          no:{diagnosis:'מערכת פליטה תקינה',urgency:'low',solution:'בדוק ויזואלית בטיפול הבא.',parts:[]}}}
-    },
-    suspension: {
-      '_': {question:'האם מורגש רעש חבטות?',
-        yes:{question:'האם בעיקר על מהמורות?',
-          yes:{diagnosis:'בולמי זעזועים או סיילנט בלוקים שחוקים',urgency:'high',solution:'בדוק בולמים ורכיבי תליה.',parts:['בולמי זעזועים','סיילנט בלוקים','מוטות מייצבים']},
-          no:{diagnosis:'רפידות מגדל או מסבי גלגל',urgency:'medium',solution:'בדוק רפידות מגדל ומסבים.',parts:['רפידות מגדל','מסבי גלגל']}},
-        no:{question:'האם הרכב נוטה לצד?',
-          yes:{diagnosis:'בעיית כיוון גלגלים',urgency:'high',solution:'כיוון גלגלים ובדיקת קפיצים.',parts:['כיוון גלגלים','קפיצים']},
-          no:{diagnosis:'מתלים תקינים',urgency:'low',solution:'בדוק בולמים בטיפול הבא.',parts:[]}}}
-    },
-    steering: {
-      '_': {question:'האם יש רעש בסיבוב?',
-        yes:{question:'האם "נקישה" קצבית?',
-          yes:{diagnosis:'גומיית הנעה (CV Joint) שחוקה',urgency:'high',solution:'החלף גומיית הנעה.',parts:['גומיית הנעה','גריז','מחבר הנעה']},
-          no:{diagnosis:'בעיה במשאבת הגה כוח',urgency:'medium',solution:'בדוק שמן הגה כוח ורקת היגוי.',parts:['שמן הגה כוח','רקת היגוי']}},
-        no:{question:'האם ההגה כבד מהרגיל?',
-          yes:{diagnosis:'בעיית הגה כוח',urgency:'high',solution:'בדוק משאבת הגה כוח ורצועה.',parts:['משאבת הגה כוח','שמן הגה','רצועה']},
-          no:{diagnosis:'מערכת היגוי תקינה',urgency:'low',solution:'בדוק מוטות היגוי בטיפול הבא.',parts:[]}}}
-    },
-    electronics: {
-      '_': {question:'האם יש תקלה במסך/מולטימדיה?',
-        yes:{question:'האם המסך נתקע או מתאפס?',
-          yes:{diagnosis:'תקלת תוכנה',urgency:'low',solution:'עדכון תוכנה או איפוס יצרן.',parts:['עדכון תוכנה']},
-          no:{diagnosis:'בעיית חומרה ביחידה',urgency:'medium',solution:'בדוק חיבורים. ייתכן החלפה.',parts:['יחידת מולטימדיה','כבלים']}},
-        no:{question:'האם יש תקלות ADAS?',
-          yes:{diagnosis:'חיישן ADAS מלוכלך',urgency:'medium',solution:'נקה חיישנים. כיול מחדש.',parts:['כיול מצלמה','ניקוי חיישנים']},
-          no:{diagnosis:'מערכות אלקטרוניות תקינות',urgency:'low',solution:'עדכן תוכנה בטיפול הבא.',parts:[]}}}
-    }
+// ── SOP Tree Builder (Symptom-based) ──────────────────────────────────────
+function buildSopTree(sys, symptomId) {
+  const SOP = {
+    // ═══════════════════════ ENGINE ═══════════════════════
+    eng_no_start: {question:'האם נשמע סיבוב של מתנע (וורר-וורר)?',
+      yes:{question:'האם המנוע "כמעט נתפס" אבל לא מצליח?',
+        yes:{question:'האם הוחלפו מצתים בשנה האחרונה?',
+          yes:{diagnosis:'בעיה בסלילי הצתה או אספקת דלק',urgency:'high',solution:'בדוק סלילי הצתה ולחץ דלק. סביר שסליל אחד או יותר לא עובד, או שמשאבת הדלק חלשה.',parts:['סליל הצתה','משאבת דלק','פילטר דלק'],repairSteps:['1. חבר מכשיר OBD2 וקרא קודי תקלה','2. בדוק ניצוץ בכל צילינדר','3. בדוק לחץ דלק במסילה','4. החלף סלילים/משאבה לפי הממצאים']},
+          no:{diagnosis:'מצתים שחוקים',urgency:'medium',solution:'מצתים ישנים לא מייצרים ניצוץ חזק מספיק. החלף סט מצתים ובדוק כבלים.',parts:['מצתים (סט)','כבלי מצתים'],repairSteps:['1. הוצא מצתים ובדוק מצב ומרווח','2. החלף סט מצתים חדש','3. בדוק מצב כבלי מצתים','4. נסה להניע']}},
+        no:{question:'האם יש ריח דלק חזק?',
+          yes:{diagnosis:'הצפת מנוע בדלק',urgency:'medium',solution:'המנוע הוצף בדלק. נסה להניע עם דוושת גז לחוצה עד הסוף (מצב "clear flood"). אם לא עוזר — בדוק מזרקים.',parts:['מזרקים','מצתים'],repairSteps:['1. לחץ על דוושת הגז עד הסוף','2. סובב מתנע 10 שניות','3. שחרר גז ונסה שוב','4. אם לא עוזר — החלף מצתים']},
+          no:{diagnosis:'בעיית תזמון או חיישן ארכובה',urgency:'high',solution:'המנוע מסתובב אבל לא נתפס — ייתכן חיישן ארכובה (CKP) תקול, או בעיית תזמון (שרשרת/רצועה).',parts:['חיישן ארכובה','רצועת/שרשרת טיימינג'],repairSteps:['1. קרא קודי תקלה OBD2','2. בדוק אות חיישן ארכובה','3. בדוק מצב שרשרת/רצועת טיימינג','4. החלף חלקים תקולים']}}},
+      no:{question:'האם בכלל נשמע משהו כשמסובבים מפתח?',
+        yes:{question:'האם נשמע קליק בודד?',
+          yes:{diagnosis:'מתנע תקוע או גלגל תנופה',urgency:'high',solution:'המתנע מקבל חשמל אבל לא מסתובב. ייתכן מתנע שרוף או שיניים שחוקות.',parts:['מתנע','גלגל תנופה','סולנואיד מתנע'],repairSteps:['1. נסה לדפוק קלות על המתנע ולהניע','2. אם עובד — המתנע עומד למות, החלף','3. אם לא — הורד מתנע ובדוק','4. בדוק שיני גלגל תנופה']},
+          no:{diagnosis:'סוללה חלשה',urgency:'medium',solution:'נשמע קליקים מרובים = סוללה חלשה. בדוק מתח. מתחת ל-12V — צריך להחליף.',parts:['סוללה','קלמפים'],repairSteps:['1. מדוד מתח סוללה (צריך 12.4V+)','2. בדוק קלמפים — נקה חלודה','3. נסה התנעת עזר מרכב אחר','4. אם הסוללה לא מחזיקה — החלף']}},
+        no:{diagnosis:'בעיית חשמל ראשית — אין מתח',urgency:'high',solution:'אין שום תגובה = אין חשמל. בדוק סוללה, קלמפים, נתיכים ראשיים, ומפסק התנעה.',parts:['סוללה','נתיכים ראשיים','מפסק התנעה','כבלי סוללה'],repairSteps:['1. בדוק שהסוללה מחוברת','2. בדוק נתיכים ראשיים בתיבה','3. בדוק מפסק ההתנעה','4. בדוק כבלי סוללה — חלודה/ניתוק']}}},
+
+    eng_vibrate: {question:'האם הרעידות בעיקר כשהרכב עומד (רגלנטי)?',
+      yes:{question:'האם הרעידות חזקות ויש ירידה בסיבובים?',
+        yes:{diagnosis:'בעיה בסיבוב סרק — שסתום IAC או מצערת',urgency:'medium',solution:'שסתום סיבוב סרק (IAC) מלוכלך או תקול, או מצערת מלוכלכת.',parts:['שסתום IAC','ניקוי מצערת','אטם מצערת'],repairSteps:['1. נקה מצערת בספריי ייעודי','2. נקה/החלף שסתום IAC','3. בדוק דליפות ואקום','4. כיול מצערת בקומפיוטר']},
+        no:{diagnosis:'תושבות מנוע (בולמי מנוע) שחוקים',urgency:'medium',solution:'תושבות המנוע סופגות רעידות. כשהן שחוקות — הרעידות עוברות לשלדה.',parts:['תושבות מנוע (סט)','בולם גיר'],repairSteps:['1. פתח מכסה ותסתכל על המנוע ברגלנטי','2. אם המנוע זז יותר מדי — תושבות','3. בדוק כל 3-4 תושבות','4. החלף שחוקות']}},
+      no:{question:'האם הרעידות בנסיעה במהירות מסוימת?',
+        yes:{diagnosis:'איזון גלגלים או ג\'נטים עקומים',urgency:'medium',solution:'גלגלים לא מאוזנים גורמים לרעידות במהירות (בד"כ 80-120 קמ"ש).',parts:['איזון גלגלים','משקולות איזון'],repairSteps:['1. בדוק לחץ אוויר בגלגלים','2. בדוק ויזואלית צמיגים — בלאי לא אחיד','3. איזון גלגלים','4. אם ממשיך — בדוק ג\'נטים עקומים']},
+        no:{diagnosis:'בעיית הצתה — פספוס בצילינדר',urgency:'high',solution:'פספוס (misfire) גורם לרעידות. סביר מצת או סליל הצתה שלא עובד.',parts:['מצתים','סלילי הצתה'],repairSteps:['1. קרא קודי תקלה — חפש P0300-P0304','2. זהה איזה צילינדר מפספס','3. החלף מצת/סליל בצילינדר הרלוונטי','4. מחק קודים ובדוק']}}},
+
+    eng_noise: {question:'האם הרעש קצבי (מתאים לסיבובי המנוע)?',
+      yes:{question:'האם הרעש מלמעלה של המנוע?',
+        yes:{diagnosis:'בעיית שסתומים או מנגנון שסתום',urgency:'medium',solution:'רעש "טיקטוק" מלמעלה = מרווח שסתומים גדול מדי, או מותח שרשרת חלש.',parts:['מכווני שסתומים','שרשרת טיימינג','מותח שרשרת'],repairSteps:['1. בדוק רמת שמן — שמן נמוך מגביר רעש שסתומים','2. בדוק מרווחי שסתומים','3. כוון מרווחים או החלף מכווני שסתומים','4. בדוק מותח שרשרת']},
+        no:{diagnosis:'בעיית מסבים או רצועות',urgency:'high',solution:'רעש נמוך/דפיקות מלמטה = מסבי ארכובה או בוכנות. רעש צפצוף = רצועה.',parts:['מסבי ארכובה','רצועה','גלגלונים'],repairSteps:['1. הקשב בעזרת סטטוסקופ מכני','2. דפיקות חזקות = מסבי ארכובה — דחוף!','3. צפצוף = רצועה — החלף','4. רעש מתכתי = בוכנות']}},
+      no:{question:'האם הרעש רק בהתנעה ואז נעלם?',
+        yes:{diagnosis:'שרשרת טיימינג מתוחה או משאבת שמן',urgency:'medium',solution:'רעש בהתנעה שנעלם = השמן עוד לא הגיע. בדוק מותח שרשרת ומשאבת שמן.',parts:['מותח שרשרת','שמן מנוע'],repairSteps:['1. בדוק רמת שמן','2. החלף שמן אם ישן','3. הקשב אם הרעש נעלם אחרי 5 שניות','4. אם ממשיך — בדוק משאבת שמן']},
+        no:{diagnosis:'רעש חיצוני — מדחס מזגן/אלטרנטור',urgency:'medium',solution:'רעש לא קצבי = אביזר נלווה. בדוק מדחס מזגן, אלטרנטור, משאבת הגה.',parts:['מדחס מזגן','אלטרנטור','משאבת הגה כוח'],repairSteps:['1. הדלק מזגן — הרעש השתנה? = מדחס','2. הורד רצועה ובדוק כל גלגלון','3. סובב ביד כל אביזר — חפש חספוס','4. החלף אביזר תקול']}}},
+
+    eng_power_loss: {question:'האם זה קורה בעיקר בעליות או בעומס?',
+      yes:{question:'האם יוצא עשן שחור מהאגזוז?',
+        yes:{diagnosis:'תערובת עשירה מדי — חיישן או מזרקים',urgency:'high',solution:'המנוע מקבל יותר מדי דלק. סביר חיישן MAF/MAP תקול או מזרק דולף.',parts:['חיישן MAF','חיישן MAP','מזרקים'],repairSteps:['1. קרא קודי תקלה','2. בדוק חיישן MAF — נקה או החלף','3. בדוק מזרקים — ניקוי/החלפה','4. בדוק לחץ דלק']},
+        no:{diagnosis:'טורבו חלש או סתימה בפילטר אוויר',urgency:'medium',solution:'פילטר אוויר סתום או טורבו עייף מגבילים אוויר למנוע = חוסר כוח.',parts:['פילטר אוויר','צינור טורבו','שסתום ווייסטגייט'],repairSteps:['1. בדוק והחלף פילטר אוויר','2. בדוק צינורות טורבו — חפש סדקים','3. בדוק לחץ טורבו','4. בדוק שסתום ווייסטגייט']}},
+      no:{question:'האם אובדן הכוח פתאומי או הדרגתי?',
+        yes:{diagnosis:'בעיית דלק או הצתה חריפה',urgency:'critical',solution:'אובדן כוח פתאומי = משהו הפסיק לעבוד. בדוק משאבת דלק, סלילי הצתה, רצועת טיימינג.',parts:['משאבת דלק','סלילי הצתה','רצועת טיימינג'],repairSteps:['1. עצור בצד בבטחה','2. בדוק קודי תקלה','3. בדוק לחץ דלק','4. בדוק שהרצועה/שרשרת לא קפצה']},
+        no:{diagnosis:'בלאי כללי או סתימה בפליטה',urgency:'medium',solution:'ירידה הדרגתית בכוח = סתימה במערכת הפליטה (ממיר קטליטי) או בלאי כללי.',parts:['ממיר קטליטי','פילטר אוויר','מצתים'],repairSteps:['1. החלף פילטר אוויר','2. החלף מצתים','3. בדוק לחץ חוזר בפליטה','4. בדוק ממיר קטליטי']}}},
+
+    eng_smoke: {question:'באיזה צבע העשן?',
+      yes:{question:'האם העשן לבן וסמיך?',
+        yes:{diagnosis:'גסקט ראש מצלינדר פרוץ — נוזל קירור נשרף',urgency:'critical',solution:'עשן לבן סמיך = נוזל קירור נכנס לצילינדרים. סכנת נזק חמור למנוע!',parts:['גסקט ראש מצלינדר','בורגי ראש','נוזל קירור'],repairSteps:['1. אל תנסע! כבה מנוע','2. בדוק רמת נוזל קירור — ירדה?','3. בדוק שמן — נראה כמו שוקו-חלב?','4. גרור למוסך — החלפת גסקט']},
+        no:{diagnosis:'צריכת שמן — טבעות בוכנה או מכווני שסתומים',urgency:'high',solution:'עשן כחלכל = שמן נשרף. טבעות בוכנה שחוקות או מכווני שסתומים.',parts:['טבעות בוכנה','מכווני שסתומים','אטמי שסתום'],repairSteps:['1. בדוק רמת שמן — יורדת מהר?','2. עשן בהאצה = טבעות','3. עשן בהתנעה לאחר עצירה = מכוונים','4. שיפוץ מנוע נדרש']}},
+      no:{diagnosis:'עשן מהמנוע עצמו — לא מהאגזוז',urgency:'high',solution:'עשן מתא המנוע = דליפת שמן או נוזל על חלקים חמים. סכנת שריפה!',parts:['אטם מכסה שסתומים','צינורות'],repairSteps:['1. כבה מנוע מיד אם יש עשן חזק','2. פתח מכסה בזהירות','3. חפש דליפה על מניפולד/טורבו','4. תקן מקור דליפה']}},
+
+    eng_check_light: {question:'האם הנורית דולקת קבוע או מהבהבת?',
+      yes:{question:'האם הנורית מהבהבת?',
+        yes:{diagnosis:'פספוסי הצתה חמורים — סכנה לממיר קטליטי!',urgency:'critical',solution:'נורית מהבהבת = פספוס אקטיבי! דלק לא שרוף מגיע לממיר ויכול להרוס אותו (תיקון של אלפי שקלים).',parts:['מצתים','סלילי הצתה','ממיר קטליטי'],repairSteps:['1. הורד מהירות ונסע בעדינות','2. אם ממשיך — עצור','3. קרא קודי תקלה מיד','4. טפל בפספוס לפני שממיר נפגע']},
+        no:{diagnosis:'תקלת מנוע — צריך קריאת קודים',urgency:'medium',solution:'נורית קבועה = יש קוד תקלה שמור. לא בהכרח דחוף, אבל צריך לבדוק.',parts:[],repairSteps:['1. קרא קודי OBD2','2. חפש את הקוד — מה המשמעות','3. טפל בתקלה הספציפית','4. מחק קוד ובדוק אם חוזר']}},
+      no:{diagnosis:'נורית מנוע נדלקה ונכבתה',urgency:'low',solution:'נורית שנדלקה וכבתה = הבעיה נרשמה כקוד היסטורי. שווה לבדוק בהזדמנות.',parts:[],repairSteps:['1. קרא קודי תקלה (גם היסטוריים)','2. בדוק אם יש תבנית חוזרת','3. טפל אם חוזר','4. ייתכן שזה חד-פעמי']}},
+
+    eng_oil_leak: {question:'האם הכתם גדול (יותר מכף יד)?',
+      yes:{question:'האם הכתם ישר מתחת למנוע?',
+        yes:{diagnosis:'דליפת שמן מנוע משמעותית',urgency:'high',solution:'דליפה גדולה מהמנוע = אטם כרטר, מכסה שסתומים, או אטם גל ארכובה.',parts:['אטם כרטר','אטם מכסה שסתומים','אטם גל ארכובה'],repairSteps:['1. נקה את האזור ובדוק מאיפה דולף','2. בדוק רמת שמן — השלם אם צריך','3. זהה אטם ספציפי — כרטר/שסתומים/גל','4. החלף אטם']},
+        no:{diagnosis:'דליפה ממערכת אחרת',urgency:'medium',solution:'כתם לא מתחת למנוע = ייתכן שמן גיר (אדום/חום), נוזל הגה כוח, או נוזל קירור.',parts:['אטמי גיר','צינור הגה כוח','צינורות קירור'],repairSteps:['1. בדוק צבע הנוזל','2. כהה/שחור = שמן מנוע','3. אדום = שמן גיר','4. ירוק/ורוד = נוזל קירור']}},
+      no:{question:'האם יש ריח שריפה?',
+        yes:{diagnosis:'דליפת שמן קלה על חלק חם',urgency:'medium',solution:'שמן מטפטף על מניפולד הפליטה. לא דחוף אבל צריך לטפל — סכנת שריפה.',parts:['אטם מכסה שסתומים'],repairSteps:['1. פתח מכסה ובדוק מכסה שסתומים','2. חפש עקבות שמן','3. החלף אטם מכסה שסתומים','4. נקה שאריות שמן']},
+        no:{diagnosis:'דליפה קלה — נטר',urgency:'low',solution:'דליפה קטנה בלי ריח. עקוב אחרי רמת שמן. אם לא יורדת מהר — אפשר לחכות לטיפול הבא.',parts:[],repairSteps:['1. סמן רמת שמן על המקל','2. בדוק שוב אחרי שבוע','3. אם ירדה — אתר וטפל','4. אם יציבה — המשך לעקוב']}}},
+
+    eng_stall: {question:'האם המנוע נכבה פתאום או שיורד לאט?',
+      yes:{question:'האם זה קורה בהילוך סרק או בנסיעה?',
+        yes:{diagnosis:'בעיית סיבוב סרק — IAC או דליפת ואקום',urgency:'high',solution:'המנוע נכבה ברגלנטי = שסתום סיבוב סרק תקול או דליפת ואקום.',parts:['שסתום IAC','צינורות ואקום','גסקט מצערת'],repairSteps:['1. נקה שסתום IAC ומצערת','2. בדוק צינורות ואקום — חפש סדקים','3. בדוק גסקט מצערת','4. כיול סיבוב סרק']},
+        no:{diagnosis:'תקלת דלק או הצתה בנסיעה',urgency:'critical',solution:'מנוע שנכבה בנסיעה = סכנה! ייתכן משאבת דלק, חיישן ארכובה, או בעיה חשמלית.',parts:['משאבת דלק','חיישן ארכובה','ממסר משאבת דלק'],repairSteps:['1. עצור בצד בבטחה','2. נסה להניע אחרי דקה','3. קרא קודי תקלה','4. בדוק לחץ דלק ואותות חיישנים']}},
+      no:{diagnosis:'בעיית ביצועים הדרגתית',urgency:'medium',solution:'ירידה הדרגתית עד כיבוי = סתימה בדלק או בעיית חיישנים.',parts:['פילטר דלק','חיישן MAF'],repairSteps:['1. החלף פילטר דלק','2. נקה חיישן MAF','3. בדוק משאבת דלק','4. קרא קודי תקלה']}},
+
+    eng_high_fuel: {question:'האם צריכת הדלק עלתה פתאום או בהדרגה?',
+      yes:{question:'האם נדלקה נורית מנוע?',
+        yes:{diagnosis:'חיישן תקול גורם לתערובת עשירה',urgency:'medium',solution:'חיישן MAF, O2 או טמפרטורה תקול גורם למנוע לשרוף יותר דלק.',parts:['חיישן MAF','חיישן O2','חיישן טמפרטורה'],repairSteps:['1. קרא קודי תקלה','2. בדוק חיישן ספציפי','3. נקה או החלף','4. מחק קודים ועקוב אחרי צריכה']},
+        no:{diagnosis:'בעיית לחץ צמיגים או סגנון נהיגה',urgency:'low',solution:'לפני הכל בדוק לחץ צמיגים! צמיגים חלשים = +15% צריכה. גם פילטר אוויר סתום.',parts:['פילטר אוויר'],repairSteps:['1. נפח צמיגים ללחץ יצרן','2. החלף פילטר אוויר','3. בדוק מצתים','4. עקוב אחרי צריכה']}},
+      no:{diagnosis:'בלאי כללי — תחזוקה',urgency:'low',solution:'צריכה שעולה לאט לאורך זמן = בלאי רגיל. טיפול מצתים, פילטרים, ושמן יעזור.',parts:['מצתים','פילטר אוויר','פילטר דלק','שמן מנוע'],repairSteps:['1. החלף מצתים','2. החלף פילטר אוויר ודלק','3. החלף שמן מנוע','4. בדוק לחץ צמיגים']}},
+
+    eng_smell: {question:'מה סוג הריח?',
+      yes:{question:'האם הריח מתוק (כמו סירופ)?',
+        yes:{diagnosis:'דליפת נוזל קירור',urgency:'high',solution:'ריח מתוק = נוזל קירור (אתילן גליקול). בדוק דליפות ורמת נוזל.',parts:['צינורות קירור','רדיאטור','גסקט'],repairSteps:['1. בדוק רמת נוזל קירור','2. חפש דליפות תחת מכסה','3. בדוק רדיאטור ומשאבת מים','4. תקן דליפה']},
+        no:{diagnosis:'דליפת שמן על חלקים חמים',urgency:'medium',solution:'ריח שריפה = שמן על מניפולד. ריח גומי = רצועה נשרפת.',parts:['אטם מכסה שסתומים','רצועה'],repairSteps:['1. פתח מכסה ובדוק ויזואלית','2. ריח שמן = חפש דליפה על פליטה','3. ריח גומי = בדוק רצועות','4. תקן מקור']}},
+      no:{diagnosis:'ריח מנוע — בדיקה כללית',urgency:'medium',solution:'ריח לא מזוהה — יש לבדוק ויזואלית תחת המכסה.',parts:[],repairSteps:['1. בדוק כל הנוזלים','2. חפש דליפות','3. בדוק רצועות','4. פנה למוסך אם ממשיך']}},
+
+    // ═══════════════════════ COOLING ═══════════════════════
+    cool_overheat: {question:'האם מחוג הטמפרטורה בקצה האדום?',
+      yes:{question:'האם יש אדים יוצאים מהמכסה?',
+        yes:{diagnosis:'רתיחת מנוע — עצור מיד!',urgency:'critical',solution:'המנוע רותח! כבה מיד, פתח מכסה (בזהירות!), אל תפתח מכסה רדיאטור חם. חכה שיתקרר.',parts:['נוזל קירור','תרמוסטט','משאבת מים','רדיאטור'],repairSteps:['1. כבה מנוע מיד!','2. חכה 30 דקות עד שמתקרר','3. בדוק רמת נוזל — הוסף אם צריך','4. גרור למוסך — אל תנסע!']},
+        no:{question:'האם זה קורה בעיקר בפקק/בעיר?',
+          yes:{diagnosis:'מאוורר קירור לא עובד',urgency:'high',solution:'בעיר ללא רוח — המאוורר חייב לעבוד. ממסר שרוף, מנוע מאוורר, או חיישן טמפרטורה.',parts:['מאוורר קירור','ממסר מאוורר','חיישן טמפרטורה'],repairSteps:['1. הדלק מזגן — המאוורר הסתובב?','2. אם לא — בדוק ממסר מאוורר','3. בדוק מנוע מאוורר (חשמל)','4. בדוק חיישן טמפרטורה']},
+          no:{diagnosis:'תרמוסטט תקוע סגור או משאבת מים חלשה',urgency:'high',solution:'במהירות גבוהה יש רוח אז המאוורר פחות חשוב. אם מתחמם גם בכביש — תרמוסטט או משאבה.',parts:['תרמוסטט','משאבת מים'],repairSteps:['1. בדוק תרמוסטט — שים בסיר מים חם','2. בדוק זרימה כשמנוע חם','3. החלף תרמוסטט','4. בדוק משאבת מים — דליפות?']}}},
+      no:{question:'האם הטמפרטורה נורמלית אבל מורגש חום חריג?',
+        yes:{diagnosis:'חיישן טמפרטורה תקול',urgency:'medium',solution:'ייתכן שהמנוע באמת חם אבל המחוג לא מראה. או שהמחוג מראה נורמלי אבל החיישן שקר.',parts:['חיישן טמפרטורה'],repairSteps:['1. מדוד טמפרטורה עם מדחום חיצוני','2. השווה למחוג','3. אם לא תואם — החלף חיישן','4. בדוק תרמוסטט']},
+        no:{diagnosis:'מערכת קירור תקינה',urgency:'low',solution:'נראה תקין. ודא שרמת נוזל קירור בסדר.',parts:[],repairSteps:['1. בדוק רמת נוזל קירור','2. בדוק צבע הנוזל — אם חלוד, החלף','3. בדוק מצב צינורות','4. המשך לעקוב']}}},
+
+    cool_leak: {question:'באיזה צבע הנוזל?',
+      yes:{question:'האם הנוזל ירוק בהיר או כתום/ורוד?',
+        yes:{diagnosis:'דליפת נוזל קירור',urgency:'high',solution:'נוזל ירוק/כתום/ורוד = נוזל קירור. בדוק רדיאטור, צינורות, משאבת מים.',parts:['רדיאטור','צינורות קירור','משאבת מים','מכסה רדיאטור'],repairSteps:['1. בדוק רמת נוזל — מלא אם צריך','2. לחץ על צינורות — חפש סדקים','3. בדוק משאבת מים — רטובה?','4. בדוק רדיאטור — סדקים?']},
+        no:{diagnosis:'נוזל ממערכת אחרת',urgency:'medium',solution:'לא נוזל קירור. כהה = שמן מנוע, אדום = שמן גיר, שקוף = מים ממזגן (תקין!).',parts:[],repairSteps:['1. בדוק צבע — שקוף = מים ממזגן (תקין)','2. כהה = שמן — בדוק מנוע/גיר','3. אדום = שמן גיר','4. טפל בדליפה הרלוונטית']}},
+      no:{diagnosis:'דליפה לא מזוהה',urgency:'medium',solution:'יש נוזל אבל לא ברור מאיפה. נקה את האזור ועקוב.',parts:[],repairSteps:['1. נקה מתחת לרכב','2. שים קרטון לבן מתחת','3. חכה ובדוק מה מטפטף','4. זהה לפי צבע ומיקום']}},
+
+    cool_heater: {question:'האם מד הטמפרטורה מראה נורמלי?',
+      yes:{diagnosis:'שסתום חימום (heater valve) או רדיאטור חימום סתום',urgency:'low',solution:'המנוע חם אבל החימום לא מגיע לתוך הרכב = רדיאטור חימום סתום או שסתום.',parts:['רדיאטור חימום','שסתום חימום','נוזל קירור'],repairSteps:['1. בדוק שני צינורות של רדיאטור חימום — שניהם חמים?','2. אם אחד קר — רדיאטור סתום','3. שטוף רדיאטור חימום','4. החלף אם לא עוזר']},
+      no:{diagnosis:'תרמוסטט תקוע פתוח',urgency:'medium',solution:'מנוע שלא מתחמם מספיק = תרמוסטט תקוע פתוח. גם החימום לא יעבוד וגם צריכת דלק עולה.',parts:['תרמוסטט'],repairSteps:['1. בדוק טמפרטורה עם מכשיר','2. אם לא מגיע ל-85-90 מעלות — תרמוסטט','3. החלף תרמוסטט','4. החלף נוזל קירור']}},
+
+    cool_steam: {question:'האם האדים מריחים מתוק?',
+      yes:{diagnosis:'דליפת נוזל קירור — רתיחה',urgency:'critical',solution:'אדים עם ריח מתוק = נוזל קירור רותח. עצור מיד ותן למנוע להתקרר!',parts:['מכסה רדיאטור','צינורות','רדיאטור'],repairSteps:['1. כבה מנוע מיד!','2. לא לפתוח מכסה רדיאטור!','3. חכה 30 דק\'','4. בדוק רמת נוזל ודליפות']},
+      no:{diagnosis:'לחות נורמלית או מזגן',urgency:'low',solution:'אדים ללא ריח = ייתכן עיבוי מהמזגן (נורמלי) או לחות בתא מנוע.',parts:[],repairSteps:['1. ודא שזה לא מהמזגן','2. אם מגיע מהמנוע — בדוק צינורות','3. בדוק מכסה שמן — יש אדים?','4. אם כן — בדוק גסקט']}},
+
+    cool_gauge: {question:'האם המחוג קופץ למעלה ולמטה?',
+      yes:{diagnosis:'חיישן טמפרטורה או תרמוסטט תקולים',urgency:'medium',solution:'מחוג שקופץ = חיישן שנותן אותות שגויים או תרמוסטט שנפתח ונסגר.',parts:['חיישן טמפרטורה','תרמוסטט'],repairSteps:['1. החלף חיישן טמפרטורה (זול ופשוט)','2. אם ממשיך — בדוק תרמוסטט','3. בדוק חיווט לחיישן','4. בדוק ECU']},
+      no:{diagnosis:'מחוג תקול או בעיית חיווט',urgency:'low',solution:'מחוג שלא זז או תקוע = ייתכן בעיה במחוג עצמו, בחיווט, או בחיישן.',parts:['חיישן טמפרטורה','חיווט'],repairSteps:['1. בדוק נתיכים','2. בדוק חיווט לחיישן','3. החלף חיישן','4. בדוק מחוג']}},
+
+    cool_ac: {question:'האם יוצא אוויר מהמפוחים אבל לא קר?',
+      yes:{question:'האם המדחס (מזגן) פועל — נשמע קליק בהפעלה?',
+        yes:{diagnosis:'מילוי גז מזגן נמוך',urgency:'low',solution:'המדחס עובד אבל אין קירור = חסר גז (פריאון). ייתכן דליפה קטנה.',parts:['גז מזגן (R134a/R1234yf)','אטמי מזגן'],repairSteps:['1. מלא גז מזגן','2. בדוק לחצים','3. אם גז יורד מהר — יש דליפה','4. אתר דליפה ותקן']},
+        no:{diagnosis:'מדחס מזגן לא עובד',urgency:'medium',solution:'המדחס לא נכנס = ממסר, נתיך, חיישן לחץ, או המדחס עצמו.',parts:['ממסר מזגן','נתיך','מדחס מזגן','חיישן לחץ'],repairSteps:['1. בדוק נתיכים וממסרים','2. בדוק חיישן לחץ גז','3. בדוק מצמד מדחס','4. ייתכן שהמדחס תקול']}},
+      no:{diagnosis:'בעיית מפוחים או טיינית',urgency:'low',solution:'אם אין אוויר בכלל = מנוע מפוח תקול. אם אוויר רק מכיוון אחד = טיינית תקועה.',parts:['מנוע מפוח','טיינית מיזוג'],repairSteps:['1. בדוק מהירויות מפוח','2. בדוק נתיך מפוח','3. אם אוויר רק חם — בדוק טיינית','4. בדוק כבל פיקוד טיינית']}},
+
+    // ═══════════════════════ ELECTRICAL ═══════════════════════
+    elec_no_start: {question:'האם הנורות בלוח מחוונים דולקות?',
+      yes:{question:'האם נשמע קליק כשמסובבים מפתח?',
+        yes:{diagnosis:'מתנע או סולנואיד מתנע',urgency:'high',solution:'יש חשמל אבל המתנע לא מסתובב. בדוק מתנע וסולנואיד.',parts:['מתנע','סולנואיד מתנע'],repairSteps:['1. נסה לדפוק על המתנע','2. אם מצליח להניע — החלף מתנע','3. בדוק כבלים למתנע','4. בדוק סולנואיד']},
+        no:{diagnosis:'מפסק התנעה או אימובילייזר',urgency:'medium',solution:'יש חשמל ללוח אבל אין תגובה למפתח = ייתכן אימובילייזר (נורית מפתח?) או מפסק.',parts:['מפסק התנעה','אימובילייזר'],repairSteps:['1. בדוק אם נורית מפתח מהבהבת','2. נסה מפתח חלופי','3. בדוק מפסק התנעה','4. בדוק ממסר התנעה']}},
+      no:{diagnosis:'סוללה מתה או ניתוק חשמלי',urgency:'high',solution:'אין חשמל בכלל = סוללה מתה, קלמפים מנותקים, או נתיך ראשי שרוף.',parts:['סוללה','קלמפים','נתיכים ראשיים'],repairSteps:['1. בדוק קלמפי סוללה — הדוקים?','2. נקה חלודה מקלמפים','3. נסה התנעה מסוללה חיצונית','4. אם עובד — החלף סוללה']}},
+
+    elec_battery: {question:'האם הסוללה חדשה (פחות משנתיים)?',
+      yes:{diagnosis:'ריקון סוללה — צרכן טפילי או אלטרנטור',urgency:'high',solution:'סוללה חדשה שמתרוקנת = משהו שואב חשמל כשהמנוע כבוי (צרכן טפילי) או האלטרנטור לא טוען.',parts:['אלטרנטור','רצועה'],repairSteps:['1. מדוד מתח טעינה — מנוע עובד (צריך 13.5-14.5V)','2. אם נמוך — אלטרנטור','3. מדוד צריכת מנוחה (צריך < 50mA)','4. אם גבוה — חפש צרכן טפילי']},
+      no:{diagnosis:'סוללה בסוף חייה',urgency:'medium',solution:'סוללה של 3+ שנים מתחילה להיחלש. זה נורמלי.',parts:['סוללה','קלמפים'],repairSteps:['1. מדוד מתח — מתחת ל-12.2V = חלשה','2. בדוק קלמפים ונקה','3. החלף סוללה','4. בדוק שאלטרנטור תקין']}},
+
+    elec_lights: {question:'האם כל האורות מהבהבים או רק ספציפיים?',
+      yes:{diagnosis:'בעיית אלטרנטור או הארקה',urgency:'high',solution:'כל האורות מהבהבים = אלטרנטור נותן מתח לא יציב או יש בעיית הארקה.',parts:['אלטרנטור','כבל הארקה'],repairSteps:['1. מדוד מתח על סוללה בזמן עבודה','2. אם מתח קופץ — אלטרנטור','3. בדוק כבלי הארקה','4. החלף אלטרנטור']},
+      no:{diagnosis:'נורה שרופה או חיווט',urgency:'low',solution:'אור ספציפי = נורה שרופה, נתיך, או חיווט.',parts:['נורות','נתיכים'],repairSteps:['1. בדוק נתיך של האור הספציפי','2. החלף נורה','3. בדוק חיווט ומחבר','4. בדוק מתג']}},
+
+    elec_windows: {question:'האם כל החלונות לא עובדים או רק אחד?',
+      yes:{diagnosis:'נתיך או ממסר חלונות',urgency:'low',solution:'כל החלונות = נתיך משותף, ממסר, או מתג ראשי.',parts:['נתיך','ממסר חלונות','מתג ראשי'],repairSteps:['1. בדוק נתיך חלונות','2. בדוק מתג נעילת חלונות — אולי לחוץ','3. בדוק ממסר','4. בדוק מתג ראשי בדלת נהג']},
+      no:{diagnosis:'מנוע חלון או מתג בודד',urgency:'low',solution:'חלון אחד = מנוע חלון תקול או מתג בדלת הספציפית.',parts:['מנוע חלון','מתג חלון'],repairSteps:['1. נסה מהמתג הראשי בדלת נהג','2. אם עובד — המתג בדלת תקול','3. אם לא — מנוע חלון','4. בדוק מחבר חשמל']}},
+
+    elec_fuse: {question:'האם ידוע מה הפסיק לעבוד?',
+      yes:{diagnosis:'נתיך שרוף — אתר סיבה',urgency:'medium',solution:'נתיך שנשרף = קצר חשמלי או עומס יתר. החלף ואם נשרף שוב — יש בעיית חיווט.',parts:['נתיכים'],repairSteps:['1. מצא את הנתיך הרלוונטי בתיבה','2. החלף באותו אמפר','3. אם נשרף שוב — יש קצר','4. בדוק חיווט — צריך חשמלאי']},
+      no:{diagnosis:'בעיית חשמל לא מזוהה',urgency:'medium',solution:'בדוק תיבת נתיכים. חפש נתיך שרוף.',parts:['נתיכים'],repairSteps:['1. פתח תיבת נתיכים (בתא מנוע ובסלון)','2. בדוק כל נתיך — השתמש בבודק','3. החלף שרופים','4. אם חוזר — פנה לחשמלאי']}},
+
+    elec_starter: {question:'האם הקליק חזק (מהמתנע) או חלש?',
+      yes:{diagnosis:'מתנע תקוע',urgency:'high',solution:'קליק חזק בודד = המתנע מקבל חשמל אבל לא מסתובב. מתנע שרוף או תקוע.',parts:['מתנע','סולנואיד'],repairSteps:['1. נסה להכות קלות על המתנע','2. אם מניע — החלף מתנע בקרוב','3. בדוק כבל חשמל למתנע','4. החלף מתנע']},
+      no:{diagnosis:'סוללה חלשה',urgency:'medium',solution:'קליקים חלשים מרובים = הסוללה חלשה מדי לסובב את המתנע.',parts:['סוללה','קלמפים'],repairSteps:['1. נסה התנעה ממכונית אחרת','2. אם עובד — הסוללה חלשה','3. נקה קלמפים','4. מדוד מתח — מתחת ל-12V החלף']}},
+
+    // ═══════════════════════ FUEL ═══════════════════════
+    fuel_smell: {question:'האם הריח מגיע מתא המנוע?',
+      yes:{diagnosis:'דליפת דלק בתא מנוע — סכנה!',urgency:'critical',solution:'ריח דלק חזק מהמנוע = דליפה! סכנת שריפה. עצור ובדוק מיד.',parts:['צינורות דלק','מזרקים','אטם מסילת דלק'],repairSteps:['1. כבה מנוע מיד!','2. אל תעשן ליד הרכב!','3. חפש רטיבות דלק בתא מנוע','4. גרור למוסך אם דליפה נראית']},
+      no:{question:'האם הריח בזמן תדלוק או אחרי?',
+        yes:{diagnosis:'אטם מכסה דלק או צינור אוורור',urgency:'low',solution:'ריח דלק אחרי תדלוק = מכסה דלק לא אוטם טוב או צינור אוורור.',parts:['מכסה דלק','שסתום EVAP'],repairSteps:['1. בדוק מכסה דלק — סוגר טוב?','2. החלף מכסה אם שחוק','3. בדוק צינורות EVAP','4. אם נורית מנוע — קרא קודים']},
+        no:{diagnosis:'דליפה מצינורות דלק או מיכל',urgency:'high',solution:'ריח דלק קבוע = דליפה מצינור או ממיכל הדלק.',parts:['צינורות דלק','מיכל דלק'],repairSteps:['1. בדוק מתחת לרכב — רטיבות?','2. בדוק צינורות דלק','3. בדוק חיבורים','4. פנה למוסך']}}},
+
+    fuel_consumption: {question:'האם צריכת הדלק עלתה ביותר מ-20%?',
+      yes:{question:'האם נדלקה נורית מנוע?',
+        yes:{diagnosis:'חיישן תקול — תערובת לא נכונה',urgency:'medium',solution:'צריכה גבוהה + נורית = חיישן MAF, O2 או טמפרטורה שנותן מידע שגוי.',parts:['חיישן MAF','חיישן O2','חיישן טמפרטורה'],repairSteps:['1. קרא קודי תקלה','2. זהה חיישן תקול','3. נקה או החלף','4. מחק קוד ועקוב']},
+        no:{diagnosis:'תחזוקה חסרה',urgency:'low',solution:'החלף פילטר אוויר, מצתים, בדוק לחץ צמיגים.',parts:['פילטר אוויר','מצתים'],repairSteps:['1. בדוק לחץ צמיגים!','2. החלף פילטר אוויר','3. החלף מצתים','4. החלף פילטר דלק']}},
+      no:{diagnosis:'צריכה מעט גבוהה — נורמלי',urgency:'low',solution:'עלייה קלה = בד"כ סגנון נהיגה, פקקים, או מזג אוויר. בדוק לחץ צמיגים.',parts:[],repairSteps:['1. נפח צמיגים','2. בדוק פילטר אוויר','3. נהג יותר שקול','4. עקוב']}},
+
+    fuel_stutter: {question:'האם הגמגום בהאצה או ברגלנטי?',
+      yes:{diagnosis:'מזרקים מלוכלכים או משאבת דלק חלשה',urgency:'high',solution:'גמגום בהאצה = לא מגיע מספיק דלק. משאבה חלשה או מזרקים סתומים.',parts:['מזרקים','משאבת דלק','פילטר דלק'],repairSteps:['1. החלף פילטר דלק','2. בדוק לחץ משאבת דלק','3. נקה/החלף מזרקים','4. בדוק מסילת דלק']},
+      no:{diagnosis:'בעיית הצתה — פספוס',urgency:'medium',solution:'גמגום ברגלנטי = פספוס בצילינדר. בד"כ מצת או סליל.',parts:['מצתים','סלילי הצתה'],repairSteps:['1. קרא קודי תקלה','2. זהה צילינדר מפספס','3. החלף מצת/סליל','4. מחק קוד ובדוק']}},
+
+    fuel_hard_start: {question:'האם קל יותר להניע כשדוושים על הגז?',
+      yes:{diagnosis:'בעיית סיבוב סרק או דליפת ואקום',urgency:'medium',solution:'עזרת גז = חוסר אוויר/דלק ברגלנטי. שסתום IAC או דליפת ואקום.',parts:['שסתום IAC','צינורות ואקום'],repairSteps:['1. נקה מצערת','2. נקה/החלף IAC','3. בדוק צינורות ואקום','4. כיול']},
+      no:{diagnosis:'משאבת דלק לא שומרת לחץ',urgency:'high',solution:'קשה להניע אחרי עצירה = הדלק מתנקז חזרה למיכל. וסת לחץ או משאבה.',parts:['משאבת דלק','וסת לחץ דלק'],repairSteps:['1. סובב מפתח ל-ON בלי להניע, חכה 3 שניות','2. עכשיו הנע — יותר קל? = משאבה לא שומרת לחץ','3. בדוק וסת לחץ','4. בדוק/החלף משאבה']}},
+
+    fuel_stall: {question:'האם נכבה רק בעצירה (עם רגל על הבלם)?',
+      yes:{diagnosis:'שסתום IAC או דליפת ואקום',urgency:'medium',solution:'בעצירה — בולם ואקום שואב אוויר. אם יש דליפה, המנוע לא מצליח לפצות.',parts:['שסתום IAC','צינורות ואקום','בולם ואקום'],repairSteps:['1. נקה IAC ומצערת','2. בדוק צינורות ואקום','3. בדוק בולם ואקום','4. כיול סיבוב סרק']},
+      no:{diagnosis:'בעיית דלק או חשמל',urgency:'high',solution:'מנוע שנכבה בנסיעה = סכנה! בדוק משאבת דלק, ממסר, חיישן ארכובה.',parts:['משאבת דלק','ממסר דלק','חיישן ארכובה'],repairSteps:['1. עצור בצד','2. קרא קודי תקלה','3. בדוק לחץ דלק','4. בדוק חיישן ארכובה']}},
+
+    fuel_gauge: {question:'האם המד תמיד מראה מלא או תמיד ריק?',
+      yes:{diagnosis:'חיישן מפלס דלק (sending unit)',urgency:'low',solution:'מד תקוע = חיישן מפלס בתוך המיכל תקול.',parts:['חיישן מפלס דלק'],repairSteps:['1. בדוק נתיך של מד דלק','2. בדוק חיווט לחיישן','3. החלף חיישן מפלס','4. כיול']},
+      no:{diagnosis:'מד דלק לא מדויק',urgency:'low',solution:'מד שמראה לא מדויק = בד"כ חיישן מתיישן. עקוב אחרי קילומטראז\' ותדלק.',parts:['חיישן מפלס'],repairSteps:['1. עקוב אחרי צריכה ידנית','2. תדלק כשמד מראה רבע','3. אם רוצה לתקן — החלף חיישן','4. לא דחוף']}},
+
+    // ═══════════════════════ EXHAUST ═══════════════════════
+    exh_noise: {question:'מאיפה הרעש — מקדמת הרכב או מאחור?',
+      yes:{question:'האם מקדמת הרכב?',
+        yes:{diagnosis:'סדק או דליפה במניפולד פליטה',urgency:'high',solution:'רעש מקדימה = מניפולד פליטה סדוק או גסקט פגום.',parts:['גסקט מניפולד','מניפולד פליטה'],repairSteps:['1. הנע ובדוק באזור מניפולד','2. חפש פיח שחור — סימן לדליפה','3. הדק בורגים','4. החלף גסקט אם צריך']},
+        no:{diagnosis:'צינור אגזוז פגום או חלוד',urgency:'medium',solution:'רעש מאחור = חור, חלודה, או חיבור רופף באגזוז.',parts:['צינור אגזוז','משתיק קול','מהדקים'],repairSteps:['1. שכב ובדוק מתחת','2. חפש חורים וחלודה','3. הדק מהדקים','4. החלף חלק פגום']}},
+      no:{diagnosis:'רעש מאגזוז לא מזוהה',urgency:'medium',solution:'בדוק את כל מערכת הפליטה מקצה לקצה.',parts:[],repairSteps:['1. הנע והקשב מבחוץ','2. בדוק כל חיבור','3. חפש חורים וחלודה','4. פנה למוסך אגזוזים']}},
+
+    exh_smoke_black: {question:'האם זה בעיקר בהאצה?',
+      yes:{diagnosis:'תערובת עשירה — יותר מדי דלק',urgency:'medium',solution:'עשן שחור = דלק לא שרוף. מזרקים דולפים, חיישן MAF, או וסת לחץ.',parts:['מזרקים','חיישן MAF','וסת לחץ דלק'],repairSteps:['1. קרא קודי תקלה','2. נקה/החלף חיישן MAF','3. בדוק מזרקים','4. בדוק וסת לחץ']},
+      no:{diagnosis:'בעיית מצערת או חיישן',urgency:'medium',solution:'עשן שחור קבוע = תערובת עשירה תמידית.',parts:['חיישן MAF','חיישן O2','מצערת'],repairSteps:['1. נקה מצערת','2. בדוק חיישנים','3. בדוק לחץ דלק','4. קרא קודים']}},
+
+    exh_smoke_white: {question:'האם העשן סמיך ומתמשך (לא רק בהתנעה)?',
+      yes:{diagnosis:'גסקט ראש מצלינדר — נוזל קירור נשרף',urgency:'critical',solution:'עשן לבן סמיך = נוזל קירור נכנס לצילינדרים. גסקט פרוץ!',parts:['גסקט ראש מצלינדר','בורגי ראש','נוזל קירור'],repairSteps:['1. בדוק רמת נוזל קירור — יורדת?','2. בדוק שמן — נראה כמו קפה עם חלב?','3. בדוק אגזוז — ריח מתוק?','4. גרור למוסך — החלפת גסקט']},
+      no:{diagnosis:'עיבוי נורמלי',urgency:'low',solution:'עשן לבן קל בהתנעה = עיבוי מים באגזוז. נורמלי בבוקר קר.',parts:[],repairSteps:['1. אם נעלם אחרי 2-3 דקות — תקין','2. בדוק רמת נוזל קירור ליתר ביטחון','3. אם ממשיך — בדוק גסקט','4. עקוב']}},
+
+    exh_smoke_blue: {question:'האם העשן מופיע בהתנעה לאחר חניה?',
+      yes:{diagnosis:'מכווני שסתומים שחוקים',urgency:'medium',solution:'עשן כחול בהתנעה = שמן דולף לתא שריפה דרך שסתומים בזמן חניה.',parts:['מכווני שסתומים','אטמי שסתום'],repairSteps:['1. בדוק רמת שמן','2. עשן שנעלם אחרי דקה = מכוונים','3. שיפוץ ראש מצלינדר','4. החלף מכווני שסתומים']},
+      no:{diagnosis:'טבעות בוכנה שחוקות',urgency:'high',solution:'עשן כחול קבוע = שמן נשרף דרך טבעות בוכנה שחוקות. שיפוץ מנוע.',parts:['טבעות בוכנה','שמן מנוע'],repairSteps:['1. בדוק צריכת שמן','2. בדיקת לחץ צילינדרים','3. אם לחץ נמוך — טבעות','4. שיפוץ מנוע נדרש']}},
+
+    exh_smell: {question:'האם הריח של ביצים רקובות?',
+      yes:{diagnosis:'ממיר קטליטי כושל',urgency:'high',solution:'ריח גופרית/ביצים רקובות = ממיר קטליטי לא מצליח לסנן. ייתכן שהוא סתום.',parts:['ממיר קטליטי','חיישן O2'],repairSteps:['1. קרא קודי תקלה','2. בדוק חיישני O2','3. בדוק ממיר — לחץ חוזר','4. החלף ממיר אם סתום']},
+      no:{diagnosis:'דליפת אגזוז או בעיית תערובת',urgency:'medium',solution:'ריח חריף אחר = דליפה במערכת פליטה או תערובת עשירה.',parts:['גסקט מניפולד','ממיר'],repairSteps:['1. בדוק דליפות אגזוז','2. קרא קודים','3. בדוק חיישנים','4. תקן דליפה']}},
+
+    exh_rattle: {question:'האם הרעש גרוע בהתנעה קרה?',
+      yes:{diagnosis:'מגן חום רופף או חלודה פנימית בממיר',urgency:'low',solution:'רעש מתכתי בהתנעה = מגן חום רופף, או חומר פנימי של ממיר שהתפורר.',parts:['מגן חום','ממיר קטליטי','משתיק קול'],repairSteps:['1. הכנס מתחת ובדוק מגני חום','2. הדק ברגים רופפים','3. הקש על ממיר — נשמע רעשוש בפנים?','4. אם כן — הממיר גמור']},
+      no:{diagnosis:'חלק רופף במערכת פליטה',urgency:'medium',solution:'רעש מתכת בנסיעה = מהדק רופף, תושבת אגזוז שבורה, או צינור מנותק.',parts:['תושבות אגזוז','מהדקים'],repairSteps:['1. בדוק תושבות גומי','2. הדק כל המהדקים','3. בדוק סדקים בצינורות','4. החלף תושבות שבורות']}},
+
+    // ═══════════════════════ TRANSMISSION ═══════════════════════
+    trans_shift_hard: {question:'האם הבעיה בגיר אוטומטי?',
+      yes:{question:'האם שמן הגיר הוחלף בשנה האחרונה?',
+        yes:{diagnosis:'סולנואיד הילוכים או בעיה אלקטרונית',urgency:'high',solution:'שמן חדש אבל הילוכים קשים = סולנואיד תקול או בעיה ב-TCM (מחשב גיר).',parts:['סולנואיד הילוכים','TCM'],repairSteps:['1. קרא קודי תקלה — קודי P07xx','2. בדוק סולנואידים','3. בדוק חיווט ל-TCM','4. ייתכן שיפוץ גיר']},
+        no:{diagnosis:'שמן גיר ישן או נמוך',urgency:'medium',solution:'שמן גיר ישן מאבד תכונות. בדוק רמה וצבע — אם כהה וריח שרוף, החלף.',parts:['שמן ATF','פילטר גיר'],repairSteps:['1. בדוק רמת שמן — מקל צהוב (חם!)','2. בדוק צבע — אדום = טוב, חום/שחור = רע','3. הרח — ריח שרוף = בעיה','4. החלף שמן ופילטר']}},
+      no:{diagnosis:'מצמד שחוק או כבל שחוק (גיר ידני)',urgency:'high',solution:'גיר ידני + הילוכים קשים = כבל/מוטות סנכרון שחוקים, או מצמד.',parts:['כבל הילוכים','סנכרון','מצמד'],repairSteps:['1. בדוק כבל הילוכים — חופשי?','2. בדוק שמן גיר ידני','3. בדוק מצמד — גבוה?','4. ייתכן סנכרון שחוק']}},
+
+    trans_slip: {question:'האם סיבובי המנוע עולים אבל המהירות לא?',
+      yes:{diagnosis:'גיר מחליק — בלאי פנימי חמור',urgency:'critical',solution:'סיבובים עולים ללא תאוצה = הגיר מחליק. בלאי פנימי חמור, ייתכן שיפוץ.',parts:['שמן ATF','שיפוץ גיר'],repairSteps:['1. בדוק רמת שמן גיר — נמוך?','2. אם שמן תקין — בלאי פנימי','3. ייתכן ממיר מומנט','4. פנה למוסך גירים — ייתכן שיפוץ']},
+      no:{diagnosis:'ממיר מומנט או בעיית לחץ',urgency:'high',solution:'הרכב מגיב לאט = ממיר מומנט, בעיית לחץ הידראולי, או סולנואיד.',parts:['ממיר מומנט','סולנואיד','שמן גיר'],repairSteps:['1. בדוק שמן גיר','2. קרא קודי תקלה','3. בדוק לחץ הידראולי','4. בדוק ממיר מומנט']}},
+
+    trans_noise: {question:'האם הרעש בהילוך ספציפי?',
+      yes:{diagnosis:'סנכרון או גלגל שיניים שחוק',urgency:'high',solution:'רעש בהילוך ספציפי = גלגל שיניים או סנכרון שחוק באותו הילוך.',parts:['סנכרון','שמן גיר'],repairSteps:['1. באיזה הילוך? = מזהה את הגלגל','2. בדוק שמן גיר','3. החלף שמן','4. אם ממשיך — שיפוץ גיר']},
+      no:{diagnosis:'מסב גיר או רמת שמן',urgency:'medium',solution:'רעש כללי = מסב שחוק או שמן נמוך.',parts:['שמן גיר','מסבי גיר'],repairSteps:['1. בדוק רמת שמן גיר','2. השלם אם צריך','3. החלף שמן','4. אם ממשיך — מסב']}},
+
+    trans_leak: {question:'האם הכתם אדום בהיר?',
+      yes:{diagnosis:'דליפת שמן גיר אוטומטי',urgency:'high',solution:'שמן אדום = שמן ATF. בדוק אטמים, מצנן, ומקלות.',parts:['אטם גיר','מקלות גיר','מצנן ATF'],repairSteps:['1. בדוק רמת שמן גיר — השלם','2. חפש מקור — אטם מקלות?','3. בדוק מצנן ATF','4. תקן דליפה']},
+      no:{diagnosis:'שמן גיר ידני או דיפרנציאל',urgency:'medium',solution:'שמן כהה/חום מאחור = שמן דיפרנציאל או גיר ידני.',parts:['אטם דיפרנציאל','שמן גיר'],repairSteps:['1. בדוק רמת שמן גיר/דיפרנציאל','2. חפש דליפה','3. החלף אטם','4. השלם שמן']}},
+
+    trans_stuck: {question:'האם הגיר תקוע בפארק/ניוטרל?',
+      yes:{diagnosis:'מנגנון נעילת הילוך או חיישן בלם',urgency:'high',solution:'לא יוצא מ-P = מנגנון interlock, מפסק דוושת בלם, או סולנואיד.',parts:['מפסק בלם','סולנואיד נעילה'],repairSteps:['1. בדוק אם אורות בלם דולקים כשדורכים','2. אם לא — מפסק בלם תקול','3. חפש שחרור חירום ליד ההילוכים','4. החלף מפסק בלם']},
+      no:{diagnosis:'בעיית גיר מכנית או אלקטרונית',urgency:'critical',solution:'גיר שלא מעביר הילוכים = בעיה חמורה. ייתכן תקלת TCM או כשל מכני.',parts:['TCM','כבל הילוכים','שמן גיר'],repairSteps:['1. כבה וחכה 5 דקות — נסה שוב','2. קרא קודי תקלה','3. בדוק שמן גיר','4. גרור למוסך גירים']}},
+
+    trans_clutch: {question:'האם המצמד תופס גבוה (ליד הסוף)?',
+      yes:{diagnosis:'מצמד שחוק',urgency:'high',solution:'מצמד שתופס גבוה = הדיסק שחוק. ככל שממשיך — ילך ויחמיר.',parts:['ערכת מצמד','גלגל תנופה','מסב לחיצה'],repairSteps:['1. בדוק מפלס נוזל מצמד (הידראולי)','2. מצמד גבוה = דיסק שחוק','3. החלף ערכת מצמד','4. בדוק גלגל תנופה']},
+      no:{diagnosis:'בעיית הידראוליקה — צילינדר מצמד',urgency:'medium',solution:'מצמד קשה או לא מגיב = צילינדר ראשי או משני דולף, או אוויר בצינור.',parts:['צילינדר מצמד ראשי','צילינדר משני','נוזל מצמד'],repairSteps:['1. בדוק נוזל מצמד — רמה?','2. בדוק דליפות בצילינדרים','3. שחרר אוויר','4. החלף צילינדר דולף']}},
+
+    // ═══════════════════════ SUSPENSION ═══════════════════════
+    susp_bump: {question:'האם הרעש מקדמת הרכב?',
+      yes:{question:'האם הרעש "בום" כבד או "טקטק" קל?',
+        yes:{diagnosis:'בולם זעזועים או תושבת שחוקים',urgency:'high',solution:'חבטה כבדה על מהמורה = בולם מת או תושבת עליונה שבורה.',parts:['בולמי זעזועים קדמיים','תושבות בולם','רפידות מגדל'],repairSteps:['1. לחץ על פגוש — הרכב קופץ יותר מפעם?','2. אם כן = בולמים','3. בדוק תושבות ורפידות','4. החלף בזוגות']},
+        no:{diagnosis:'מוט מייצב או סיילנט בלוק',urgency:'medium',solution:'טקטוק על מהמורות קטנות = מוט מייצב (anti-roll bar link) שחוק.',parts:['מוטות מייצבים','סיילנט בלוקים'],repairSteps:['1. תפוס מוט מייצב — זזז?','2. בדוק גומיות — סדוקות?','3. החלף מוטות מייצבים','4. החלף סיילנט בלוקים']}},
+      no:{diagnosis:'בולמים אחוריים או קפיצים',urgency:'medium',solution:'חבטות מאחור = בולמים אחוריים, תושבות, או קפיצים.',parts:['בולמי זעזועים אחוריים','קפיצים'],repairSteps:['1. בדוק בולמים אחוריים — דליפת שמן?','2. בדוק קפיצים — שבורים?','3. בדוק תושבות','4. החלף בזוגות']}},
+
+    susp_drift: {question:'האם הרכב סוחף בקו ישר?',
+      yes:{question:'האם הוחלפו צמיגים לאחרונה?',
+        yes:{diagnosis:'כיוון גלגלים (alignment)',urgency:'medium',solution:'אחרי החלפת צמיגים צריך כיוון. גם פגיעה במדרכה משנה כיוון.',parts:['כיוון גלגלים'],repairSteps:['1. עשה כיוון גלגלים','2. בדוק לחץ אוויר — שווה בשני הצדדים?','3. בדוק בלאי צמיגים','4. אם ממשיך — בדוק מוטות היגוי']},
+        no:{diagnosis:'לחץ צמיגים לא אחיד או בלאי',urgency:'low',solution:'לפני כיוון — בדוק לחץ אוויר! צמיג חלש מצד אחד גורם לסחיפה.',parts:[],repairSteps:['1. נפח כל הצמיגים ללחץ יצרן','2. בדוק בלאי — אחיד?','3. אם ממשיך — כיוון גלגלים','4. בדוק רכיבי תליה']}},
+      no:{diagnosis:'קפיץ שבור או תליה לא אחידה',urgency:'high',solution:'רכב שנוטה = ייתכן קפיץ שבור מצד אחד.',parts:['קפיץ','בולם זעזועים'],repairSteps:['1. בדוק גובה הרכב — שווה?','2. צד נמוך = קפיץ שבור','3. החלף בזוגות','4. עשה כיוון']}},
+
+    susp_squeak: {question:'האם החריקה בעיקר על מהמורות?',
+      yes:{diagnosis:'גומיות/בושינגים יבשים',urgency:'low',solution:'חריקה = גומיות תליה יבשות. לא מסוכן אבל מעצבן.',parts:['בושינגים','סיליקון ספריי'],repairSteps:['1. נסה ספריי סיליקון על גומיות','2. אם עוזר זמנית — הגומיות ישנות','3. החלף בושינגים שחוקים','4. בדוק סיילנט בלוקים']},
+      no:{diagnosis:'חריקה מבולמים או קפיצים',urgency:'medium',solution:'חריקה בסיבובים או ברגלנטי = רפידות מגדל או קפיצים.',parts:['רפידות מגדל','משומנת'],repairSteps:['1. בדוק רפידות מגדל עליונות','2. בדוק קפיצים — חלודה?','3. שמן חיכוכים','4. החלף רפידות']}},
+
+    susp_bounce: {question:'האם הרכב ממשיך לקפוץ אחרי מהמורה?',
+      yes:{diagnosis:'בולמי זעזועים מתים',urgency:'high',solution:'רכב שקופץ ולא נעצר = הבולמים לא עובדים. צריך להחליף.',parts:['בולמי זעזועים (סט)'],repairSteps:['1. בדוק דליפת שמן מבולמים','2. לחץ על כל פינה — קופצת?','3. החלף בולמים בזוגות','4. עשה כיוון אחרי']},
+      no:{diagnosis:'קפיצים חלשים',urgency:'medium',solution:'הרכב יושב נמוך אבל לא קופץ = קפיצים עייפים.',parts:['קפיצים'],repairSteps:['1. מדוד גובה רכב — תקני?','2. השווה שני צדדים','3. החלף קפיצים','4. עשה כיוון']}},
+
+    susp_uneven: {question:'האם הרכב נמוך מצד אחד ספציפי?',
+      yes:{diagnosis:'קפיץ שבור',urgency:'high',solution:'צד אחד נמוך = קפיץ שבור. בד"כ אפשר לשמוע רעש.',parts:['קפיץ','בולם'],repairSteps:['1. בדוק ויזואלית — קפיץ שבור?','2. החלף בזוגות (שמאל+ימין)','3. החלף בולם אם ישן','4. כיוון גלגלים']},
+      no:{diagnosis:'בלאי לא אחיד או צמיגים',urgency:'medium',solution:'בדוק לחץ צמיגים ומצב קפיצים.',parts:['קפיצים','צמיגים'],repairSteps:['1. בדוק לחץ צמיגים','2. בדוק גובה כל פינה','3. השווה','4. החלף קפיצים עייפים']}},
+
+    susp_vibrate: {question:'האם הרעידות במהירות מסוימת (80-120)?',
+      yes:{diagnosis:'איזון גלגלים',urgency:'medium',solution:'רעידות במהירות ספציפית = גלגלים לא מאוזנים.',parts:['איזון גלגלים'],repairSteps:['1. איזון גלגלים','2. בדוק ג\'נטים — עקומים?','3. בדוק צמיגים — בליטות?','4. אם ממשיך — מסב גלגל']},
+      no:{diagnosis:'מסב גלגל או גומיית הנעה',urgency:'high',solution:'רעידות בכל מהירות = מסב גלגל שחוק או גומיית הנעה.',parts:['מסב גלגל','גומיית הנעה'],repairSteps:['1. הגבה רכב וסובב גלגל','2. רעש = מסב','3. משחק = מסב','4. בדוק גומיות הנעה']}},
+
+    // ═══════════════════════ STEERING ═══════════════════════
+    steer_heavy: {question:'האם ההגה כבד רק כשהרכב עומד?',
+      yes:{question:'האם יש רעש יללה מהמנוע?',
+        yes:{diagnosis:'משאבת הגה כוח',urgency:'high',solution:'יללה + הגה כבד = משאבת הגה כוח גוססת או חוסר שמן.',parts:['משאבת הגה כוח','שמן הגה','רצועה'],repairSteps:['1. בדוק רמת שמן הגה — מלא?','2. אם ריק — יש דליפה, מלא ובדוק','3. בדוק רצועה — מתוחה?','4. החלף משאבה אם תקולה']},
+        no:{diagnosis:'רצועה מתוחה או הגה חשמלי',urgency:'medium',solution:'ללא יללה = רצועה רופפת (הגה הידראולי) או מנוע הגה חשמלי.',parts:['רצועה','מנוע הגה חשמלי'],repairSteps:['1. בדוק רצועה — מתחה','2. בדוק נתיך הגה חשמלי','3. קרא קודי תקלה','4. בדוק מנוע EPS']}},
+      no:{diagnosis:'בעיית כיוון או צמיגים',urgency:'low',solution:'הגה כבד גם בנסיעה = לחץ צמיגים נמוך או כיוון לא נכון.',parts:[],repairSteps:['1. בדוק לחץ צמיגים!','2. אם תקין — עשה כיוון','3. בדוק מוטות היגוי','4. בדוק פרקי כדור']}},
+
+    steer_noise: {question:'האם הרעש בסיבוב מלא (קצה)?',
+      yes:{diagnosis:'גומיית הנעה (CV Joint)',urgency:'high',solution:'נקישות בסיבוב מלא = גומיית הנעה שחוקה. בד"כ מצד אחד.',parts:['גומיית הנעה','גריז','מנשק'],repairSteps:['1. סובב הגה ימינה עד הסוף — רעש? = שמאל','2. סובב שמאלה — רעש? = ימין','3. בדוק מגן גומי של גומייה — קרוע?','4. החלף גומייה']},
+      no:{diagnosis:'משאבת הגה או מוטות',urgency:'medium',solution:'רעש בסיבוב רגיל = משאבת הגה כוח או פרקי כדור.',parts:['שמן הגה','פרקי כדור','מוטות היגוי'],repairSteps:['1. בדוק שמן הגה','2. בדוק פרקי כדור — משחק?','3. בדוק מוטות היגוי','4. החלף שחוקים']}},
+
+    steer_vibrate: {question:'האם ההגה רועד במהירות גבוהה (כביש מהיר)?',
+      yes:{diagnosis:'איזון גלגלים קדמיים',urgency:'medium',solution:'רעידות הגה במהירות = גלגלים קדמיים לא מאוזנים.',parts:['איזון גלגלים'],repairSteps:['1. איזון גלגלים קדמיים','2. בדוק ג\'נטים','3. בדוק צמיגים','4. אם ממשיך — מסב גלגל']},
+      no:{question:'האם ההגה רועד בבלימה?',
+        yes:{diagnosis:'דיסקי בלם עקומים',urgency:'high',solution:'רעידות בבלימה = דיסקים עקומים.',parts:['דיסקי בלם','רפידות'],repairSteps:['1. בדוק דיסקים — עובי אחיד?','2. הקזה או החלפה','3. החלף רפידות','4. בדוק קליפרים']},
+        no:{diagnosis:'מוטות היגוי או פרקי כדור',urgency:'high',solution:'רעידות קבועות = רכיבי היגוי רופפים.',parts:['פרקי כדור','מוטות היגוי'],repairSteps:['1. הגבה ובדוק משחק בגלגלים','2. בדוק פרקי כדור','3. בדוק מוטות היגוי','4. החלף רופפים']}}},
+
+    steer_pull: {question:'האם הרכב מושך לצד קבוע?',
+      yes:{question:'האם הוחלפו צמיגים לאחרונה?',
+        yes:{diagnosis:'כיוון גלגלים',urgency:'medium',solution:'משיכה לצד אחרי החלפה = צריך כיוון.',parts:['כיוון גלגלים'],repairSteps:['1. עשה כיוון גלגלים','2. בדוק לחץ צמיגים','3. אם ממשיך — בדוק תליה','4. בדוק קליפרים']},
+        no:{diagnosis:'לחץ צמיגים או קליפר בלם',urgency:'medium',solution:'בדוק לחץ צמיגים! גם קליפר תקוע גורם למשיכה.',parts:['כיוון גלגלים','קליפר'],repairSteps:['1. נפח צמיגים שווה','2. אם ממשיך — כיוון','3. בדוק קליפרים — חם מצד אחד?','4. שחרר קליפר תקוע']}},
+      no:{diagnosis:'בעיה לסירוגין',urgency:'low',solution:'אם לא קבוע — ייתכן רוח צד, כביש משופע, או בלאי קל.',parts:[],repairSteps:['1. בדוק לחץ צמיגים','2. נסה בכביש ישר','3. אם חוזר — כיוון','4. עקוב']}},
+
+    steer_loose: {question:'האם ההגה זז בלי שהגלגלים זזים?',
+      yes:{diagnosis:'משחק ברכיבי היגוי',urgency:'critical',solution:'הגה רופף = משחק בפרקי כדור, מוטות, או תיבת היגוי. סכנה!',parts:['פרקי כדור','מוטות היגוי','תיבת היגוי'],repairSteps:['1. הגבה ובדוק משחק בגלגלים','2. בדוק פרקי כדור — משחק?','3. בדוק מוטות היגוי','4. החלף רופפים מיד!']},
+      no:{diagnosis:'הגה לא מדויק',urgency:'medium',solution:'הגה שמרגיש "מעורפל" = ייתכן בלאי קל או צמיגים חלשים.',parts:['פרקי כדור','כיוון'],repairSteps:['1. בדוק לחץ צמיגים','2. בדוק פרקי כדור','3. בדוק מוטות','4. כיוון']}},
+
+    steer_click: {question:'האם הנקישות בסיבוב איטי (חניה)?',
+      yes:{diagnosis:'גומיית הנעה חיצונית (CV Joint)',urgency:'high',solution:'נקישות בסיבובים = גומיית הנעה. ככל שממשיכים ככה נהרסת.',parts:['גומיית הנעה','גריז','מנשק'],repairSteps:['1. סובב הגה ונסע לאט — מאיזה צד?','2. בדוק מגן גומי — קרוע?','3. החלף גומייה','4. בדוק גם צד שני']},
+      no:{diagnosis:'פרק כדור או מסב',urgency:'medium',solution:'נקישות בנסיעה = פרק כדור שחוק או מסב.',parts:['פרק כדור','מסב גלגל'],repairSteps:['1. הגבה ובדוק','2. נענע גלגל — משחק?','3. סובב — רעש?','4. החלף שחוקים']}},
+
+    // ═══════════════════════ BRAKES ═══════════════════════
+    brk_noise: {question:'האם הרעש מתכתי (מתכת על מתכת)?',
+      yes:{diagnosis:'רפידות שחוקות לגמרי — דחוף!',urgency:'critical',solution:'מתכת על מתכת = אין רפידות! הדיסקים נהרסים. החלף מיד!',parts:['רפידות בלם','דיסקי בלם','חיישני בלאי'],repairSteps:['1. אל תנסע רחוק!','2. החלף רפידות ודיסקים','3. בדוק קליפרים','4. בדוק צינורות בלם']},
+      no:{question:'האם הרעש רק בבוקר/אחרי גשם?',
+        yes:{diagnosis:'חלודה קלה על דיסקים — נורמלי',urgency:'low',solution:'שכבת חלודה דקה אחרי חניה ארוכה/גשם. נעלמת אחרי כמה בלימות.',parts:[],repairSteps:['1. זה נורמלי!','2. בלום כמה פעמים בעדינות','3. הרעש צריך להיעלם','4. אם לא — בדוק רפידות']},
+        no:{diagnosis:'רפידות בשלבי בלאי מתקדמים',urgency:'high',solution:'חריקה קבועה = חיישן בלאי מזהיר או רפידות דקות.',parts:['רפידות בלם','חיישני בלאי'],repairSteps:['1. בדוק עובי רפידות','2. פחות מ-3 מ"מ = החלף','3. בדוק דיסקים — עובי מינימלי','4. החלף רפידות (ודיסקים אם צריך)']}}},
+
+    brk_vibrate: {question:'האם הרעידות בהגה או בכל הרכב?',
+      yes:{diagnosis:'דיסקים קדמיים עקומים',urgency:'high',solution:'רעידות בהגה בבלימה = דיסקים קדמיים לא ישרים.',parts:['דיסקי בלם קדמיים','רפידות'],repairSteps:['1. בדוק דיסקים — הקזה או החלפה','2. בדוק רפידות','3. בדוק קליפרים — תקועים?','4. החלף זוג דיסקים']},
+      no:{diagnosis:'דיסקים אחוריים או בעיית ABS',urgency:'medium',solution:'רעידות בכל הרכב = דיסקים אחוריים או פעולת ABS.',parts:['דיסקים אחוריים','חיישני ABS'],repairSteps:['1. בדוק אם ABS פועל — נורמלי על משטח חלק','2. בדוק דיסקים אחוריים','3. הקזה או החלפה','4. בדוק חיישני ABS']}},
+
+    brk_soft: {question:'האם דוושת הבלם יורדת עד הרצפה?',
+      yes:{diagnosis:'דליפה הידראולית או צילינדר ראשי',urgency:'critical',solution:'דוושה עד הרצפה = דליפת נוזל או צילינדר ראשי תקול. סכנה!',parts:['נוזל בלמים','צילינדר ראשי','צינורות בלם'],repairSteps:['1. אל תנסע!','2. בדוק רמת נוזל בלמים','3. חפש דליפות בגלגלים','4. גרור למוסך']},
+      no:{diagnosis:'אוויר במערכת או בלאי רפידות',urgency:'high',solution:'דוושה רכה = אוויר בצינורות או רפידות דקות.',parts:['נוזל בלמים','רפידות'],repairSteps:['1. בדוק רמת נוזל','2. בדוק רפידות','3. שחרור אוויר (bleeding)','4. בדוק דליפות']}},
+
+    brk_pull: {question:'האם הרכב נוטה לאותו צד תמיד?',
+      yes:{diagnosis:'קליפר תקוע מצד אחד',urgency:'high',solution:'נטייה לצד קבוע = קליפר תקוע או צינור בלם סתום באותו צד.',parts:['קליפר בלם','צינור בלם'],repairSteps:['1. אחרי נסיעה — בדוק חום דיסקים','2. חם מצד אחד = קליפר תקוע','3. שחרר/החלף קליפר','4. בדוק צינור — מנופח?']},
+      no:{diagnosis:'בלאי לא אחיד',urgency:'medium',solution:'נטייה לא קבועה = בלאי שונה בין הצדדים.',parts:['רפידות','קליפרים'],repairSteps:['1. בדוק רפידות שני צדדים','2. השווה עובי','3. החלף זוגות','4. בדוק קליפרים']}},
+
+    brk_long: {question:'האם הבעיה התפתחה בהדרגה?',
+      yes:{diagnosis:'בלאי רפידות מתקדם',urgency:'high',solution:'בלימה שמתארכת = רפידות נשחקות והולכות. בדוק ותחליף.',parts:['רפידות בלם','דיסקי בלם'],repairSteps:['1. בדוק עובי רפידות','2. בדוק דיסקים','3. החלף שחוקים','4. בדוק נוזל']},
+      no:{diagnosis:'בעיית נוזל או בוסטר',urgency:'critical',solution:'אובדן בלמים פתאומי = דליפת נוזל או בוסטר בלם תקול!',parts:['נוזל בלמים','בוסטר','צילינדר ראשי'],repairSteps:['1. אל תנסע!','2. בדוק רמת נוזל','3. חפש דליפות','4. גרור למוסך']}},
+
+    brk_light: {question:'האם הנורית דולקת כל הזמן?',
+      yes:{question:'האם בלם היד למטה?',
+        yes:{diagnosis:'רמת נוזל בלמים נמוכה',urgency:'high',solution:'נורית בלם + בלם יד למטה = נוזל נמוך. סימן לבלאי או דליפה.',parts:['נוזל בלמים'],repairSteps:['1. בדוק רמת נוזל בלמים','2. אם נמוך — מלא והשגח','3. חפש דליפות','4. בדוק רפידות — רמת נוזל יורדת עם בלאי']},
+        no:{diagnosis:'מפסק בלם יד',urgency:'low',solution:'ודא שבלם היד באמת למטה לגמרי. ייתכן מפסק.',parts:['מפסק בלם יד'],repairSteps:['1. שחרר בלם יד עד הסוף','2. אם נורית נשארת — בדוק מפסק','3. בדוק רמת נוזל','4. בדוק נתיך']}},
+      no:{diagnosis:'נורית לסירוגין — חיישן או רמת נוזל על הגבול',urgency:'medium',solution:'נורית שנדלקת לפעמים = רמת נוזל על הגבול.',parts:['נוזל בלמים'],repairSteps:['1. בדוק רמת נוזל','2. השלם עד MAX','3. עקוב — אם יורדת = דליפה','4. בדוק חיישן']}},
+
+    brk_smell: {question:'האם הריח אחרי נסיעה ארוכה בירידה?',
+      yes:{diagnosis:'חימום יתר מבלימת יתר',urgency:'high',solution:'ירידה ארוכה + בלם = חימום. השתמש בהילוך נמוך!',parts:['נוזל בלמים'],repairSteps:['1. עצור ותן לבלמים להתקרר','2. אל תשפוך מים — סכנה!','3. בפעם הבאה — הילוך נמוך בירידות','4. בדוק דיסקים ורפידות']},
+      no:{diagnosis:'קליפר תקוע — בולם ברכב',urgency:'high',solution:'ריח שריפה מגלגל ספציפי = קליפר תקוע שבולם כל הזמן.',parts:['קליפר','רפידות','דיסקים'],repairSteps:['1. בדוק חום כל גלגל — איזה חם?','2. קליפר בצד החם תקוע','3. שחרר/החלף קליפר','4. החלף רפידות ודיסק שנהרסו']}},
+
+    // ═══════════════════════ ELECTRONICS ═══════════════════════
+    eln_warning: {question:'האם הנורית בצבע אדום?',
+      yes:{diagnosis:'נורית אזהרה קריטית',urgency:'high',solution:'נורית אדומה = בעיה חמורה. טמפרטורה, שמן, בלמים, או סוללה.',parts:[],repairSteps:['1. זהה מה הנורית','2. טמפרטורה = עצור!','3. שמן = כבה מנוע ובדוק רמה','4. בלמים = נסע בזהירות למוסך']},
+      no:{question:'האם הנורית בצבע צהוב/כתום?',
+        yes:{diagnosis:'נורית אזהרה — לא דחוף אבל צריך לבדוק',urgency:'medium',solution:'צהוב = בעיה שדורשת טיפול אבל אפשר להמשיך לנסוע.',parts:[],repairSteps:['1. זהה מה הנורית','2. קרא קודי תקלה','3. טפל בהקדם','4. אל תתעלם לאורך זמן']},
+        no:{diagnosis:'נורית מידע',urgency:'low',solution:'ירוקה/כחולה = סתם מידע. לבנה = מידע נוסף.',parts:[],repairSteps:['1. קרא במדריך מה הנורית','2. בד"כ לא דורשת טיפול','3. אם מפריעה — בדוק','4. לא דחוף']}}},
+
+    eln_screen: {question:'האם המסך שחור לגמרי?',
+      yes:{diagnosis:'נתיך שרוף או יחידה תקולה',urgency:'low',solution:'מסך שחור = נתיך, חיווט, או היחידה עצמה.',parts:['נתיך','יחידת מולטימדיה'],repairSteps:['1. בדוק נתיך מולטימדיה','2. נסה ללחוץ על כפתור הפעלה','3. נתק סוללה ל-5 דקות','4. אם לא עוזר — בדוק חיווט']},
+      no:{diagnosis:'תקלת תוכנה — איפוס',urgency:'low',solution:'מסך תקוע = תקלת תוכנה. ניתן לאפס.',parts:[],repairSteps:['1. לחץ ארוך על כפתור הפעלה','2. חפש כפתור reset קטן (מחט)','3. נתק סוללה 5 דקות','4. אם ממשיך — עדכון תוכנה']}},
+
+    eln_sensors: {question:'האם כל החיישנים לא עובדים או ספציפי?',
+      yes:{diagnosis:'מודול חיישנים או נתיך',urgency:'medium',solution:'כל החיישנים = נתיך משותף או מודול.',parts:['נתיך','מודול חיישנים'],repairSteps:['1. בדוק נתיכים','2. בדוק אם מצלמה עובדת','3. ייתכן מודול ראשי','4. קרא קודים']},
+      no:{diagnosis:'חיישן בודד תקול',urgency:'low',solution:'חיישן אחד = בד"כ החיישן עצמו או חיווט.',parts:['חיישן חניה','מצלמה'],repairSteps:['1. נקה חיישנים','2. בדוק חיווט','3. החלף חיישן ספציפי','4. כיול']}},
+
+    eln_abs: {question:'האם נורית ABS דולקת כל הזמן?',
+      yes:{diagnosis:'חיישן ABS או מודול',urgency:'high',solution:'נורית ABS = המערכת מושבתת! הבלמים עובדים אבל בלי ABS.',parts:['חיישן ABS','מודול ABS'],repairSteps:['1. קרא קודי ABS (לא רגיל OBD)','2. בדוק חיישני ABS בגלגלים','3. נקה מלכלוך','4. החלף חיישן תקול']},
+      no:{diagnosis:'תקלה זמנית ב-ABS',urgency:'medium',solution:'נורית שבאה והולכת = חיישן מלוכלך או חיווט.',parts:['חיישני ABS'],repairSteps:['1. נקה חיישני ABS','2. בדוק חיווט','3. בדוק טבעות ABS','4. קרא קודים']}},
+
+    eln_airbag: {question:'האם נורית הכרית דולקת מההתנעה?',
+      yes:{diagnosis:'תקלה במערכת כריות אוויר',urgency:'high',solution:'נורית כרית = כריות עלולות לא לפעול בתאונה! דורש אבחון.',parts:['חיישן כרית','מודול SRS','מחבר שעון'],repairSteps:['1. קרא קודי SRS (אבחון ייעודי)','2. בד"כ מחבר מתחת למושב','3. בדוק מחבר שעון בהגה','4. פנה למוסך — לא לעבוד לבד על כריות!']},
+      no:{diagnosis:'חיווט או מחבר רופף',urgency:'medium',solution:'נורית לסירוגין = מחבר שהתנתק, בד"כ מתחת למושב.',parts:['מחבר'],repairSteps:['1. בדוק מחברים מתחת למושבים','2. בדוק שלא זזו','3. קרא קודים','4. מחק ועקוב']}},
+
+    eln_random: {question:'האם הבעיות קשורות למזג אוויר (גשם/חום)?',
+      yes:{diagnosis:'בעיית אטימות או חלודה בחיווט',urgency:'medium',solution:'תקלות בגשם = מים נכנסים למחברים. בחום = מחבר מתפשט ומתנתק.',parts:['מחברים','ספריי מגן'],repairSteps:['1. בדוק מחברים — חלודה?','2. ייבש ונקה','3. ספריי מגן על מחברים','4. בדוק אטמי דלתות ומכסה']},
+      no:{diagnosis:'הארקה רעה או סוללה חלשה',urgency:'medium',solution:'תקלות אקראיות = הארקה פגומה (כבל מסה) או סוללה בסוף חייה.',parts:['כבל הארקה','סוללה'],repairSteps:['1. בדוק ונקה כבלי הארקה','2. בדוק מתח סוללה','3. בדוק אלטרנטור','4. חפש כבל מסה רופף']}}
   };
 
-  const sysT = trees[sys] || {};
-  // Try keyword match
-  for (const [kp, tree] of Object.entries(sysT)) {
-    if (kp === '_') continue;
-    if (kp.split('|').some(kw => issue.includes(kw))) return tree;
-  }
-  // Default
-  return sysT['_'] || {question:'האם הבעיה קבועה?',
-    yes:{diagnosis:'תקלה קבועה — פנה למוסך',urgency:'high',solution:'בדיקה מקצועית נדרשת.',parts:[]},
-    no:{diagnosis:'תקלה לסירוגין — עקוב',urgency:'medium',solution:'תעד מתי קורה ופנה למוסך.',parts:[]}};
+  // Find SOP tree by symptom ID
+  return SOP[symptomId] || {question:'האם הבעיה קבועה (כל הזמן)?',
+    yes:{diagnosis:'תקלה קבועה — פנה למוסך',urgency:'high',solution:'בעיה שלא נעלמת דורשת בדיקה מקצועית.',parts:[],repairSteps:['1. תעד מה הבעיה','2. צלם/הקלט אם אפשר','3. פנה למוסך','4. שתף את האבחון']},
+    no:{diagnosis:'תקלה לסירוגין — תעד ועקוב',urgency:'medium',solution:'תעד מתי זה קורה (חם/קר, נסיעה/עצירה). תעזור למכונאי.',parts:[],repairSteps:['1. רשום מתי קורה','2. רשום באיזה תנאים','3. צלם אם אפשר','4. פנה למוסך עם המידע']}};
 }
 </script>
 </body>
