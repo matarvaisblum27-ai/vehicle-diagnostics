@@ -151,7 +151,7 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
   <div id="step-5" class="card hid">
     <div class="ct">שלב 5 — פתרון מפורט</div>
     <div id="sol-det"></div>
-    <div class="btns"><button class="btn btn-s" onclick="goStep(1)">אבחון חדש</button><button class="btn btn-p" onclick="window.print()">הדפס סיכום</button></div>
+    <div class="btns"><button class="btn btn-s" onclick="goStep(1)">אבחון חדש</button></div>
   </div>
 
   <div id="loading" class="ld hid"><div class="spin"></div><p style="margin-top:12px">טוען נתוני רכבים...</p></div>
@@ -438,8 +438,6 @@ function goStep4(){
 // ── Step 5 ─────────────────────────────────────────────────────────────────
 function goStep5(){
   goStep(5);const d=S.diag,s=S.sop,u=d.urgency||'medium';
-  const costs={engine:{min:500,max:8000},cooling:{min:300,max:4000},electrical:{min:200,max:3000},fuel:{min:300,max:5000},exhaust:{min:400,max:6000},transmission:{min:500,max:12000},suspension:{min:300,max:4000},steering:{min:300,max:5000},brakes:{min:200,max:3000},electronics:{min:200,max:4000}};
-  const cost=costs[S.selSys]||{min:300,max:5000};
   let h='<div class="fi">';
   h+=`<div class="ds"><h4>אבחנה</h4><p style="font-size:1.15rem;font-weight:700;color:var(--g800)">${d.diagnosis}</p></div>`;
   h+=`<div class="ds"><h4>דחיפות</h4><span class="ub ${u}">${URG_HE[u]}</span></div>`;
@@ -453,7 +451,18 @@ function goStep5(){
     h+='</div></div>';
   }
   if(d.parts&&d.parts.length){h+='<div class="ds"><h4>חלקים נדרשים</h4><div class="pl">';d.parts.forEach(p=>{h+=`<span class="pt">${p}</span>`;});h+='</div></div>';}
-  h+=`<div class="ds"><h4>הערכת עלות</h4><div class="cr"><span>${cost.min} ₪</span><div class="crb"><div class="crf" style="width:60%"></div></div><span>${cost.max} ₪</span></div></div>`;
+  // YouTube tutorial videos
+  const ytQuery = buildYouTubeQuery(S.selSys, d, S.vehicle);
+  h+=`<div class="ds"><h4>🎬 סרטוני הדרכה</h4><p style="font-size:.85rem;color:var(--g500);margin-bottom:10px">סרטונים באנגלית עם הדרכות תיקון מפורטות</p>`;
+  h+=`<div style="display:flex;flex-direction:column;gap:8px">`;
+  ytQuery.forEach(q=>{
+    const url='https://www.youtube.com/results?search_query='+encodeURIComponent(q.query);
+    h+=`<a href="${url}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--g50);border:1.5px solid var(--g200);border-radius:8px;text-decoration:none;color:var(--g800);transition:.2s;cursor:pointer" onmouseover="this.style.borderColor='#ff0000';this.style.background='#fff'" onmouseout="this.style.borderColor='var(--g200)';this.style.background='var(--g50)'">`;
+    h+=`<span style="font-size:1.6rem;flex-shrink:0">▶️</span>`;
+    h+=`<div><div style="font-weight:600;font-size:.95rem">${q.label}</div><div style="font-size:.8rem;color:var(--g500);direction:ltr;text-align:left">${q.query}</div></div>`;
+    h+=`</a>`;
+  });
+  h+=`</div></div>`;
   h+=`<div class="smr"><h4 style="margin-bottom:12px">סיכום אבחון</h4><table style="width:100%;border-collapse:collapse">`;
   h+=`<tr><td class="lbl">רכב:</td><td>${s.vehicle}</td></tr>`;
   h+=`<tr><td class="lbl">תסמין:</td><td>${s.issue}</td></tr>`;
@@ -463,6 +472,135 @@ function goStep5(){
   if(d.parts&&d.parts.length)h+=`<tr><td class="lbl">חלקים:</td><td>${d.parts.join(', ')}</td></tr>`;
   h+='</table></div></div>';
   $('sol-det').innerHTML=h;
+}
+
+// ── YouTube Query Builder ─────────────────────────────────────────────────
+function buildYouTubeQuery(sys, diag, vehicle) {
+  // Hebrew diagnosis → English search terms mapping
+  const DIAG_EN = {
+    'בעיה בסלילי הצתה או אספקת דלק': 'ignition coil fuel supply problem',
+    'מצתים שחוקים': 'worn spark plugs replacement',
+    'הצפת מנוע בדלק': 'engine flooded with fuel fix',
+    'בעיית תזמון או חיישן ארכובה': 'crankshaft position sensor timing',
+    'מתנע תקוע או גלגל תנופה': 'bad starter motor flywheel',
+    'סוללה חלשה': 'weak car battery diagnosis',
+    'בעיית חשמל ראשית — אין מתח': 'car no electrical power fix',
+    'בעיה בסיבוב סרק — שסתום IAC או מצערת': 'idle air control valve throttle body cleaning',
+    'תושבות מנוע (בולמי מנוע) שחוקים': 'engine mount replacement',
+    'גלגל תנופה דו-מסתי (DMF) שחוק': 'dual mass flywheel DMF replacement',
+    'בעיית איזון או הזרקה': 'engine balance injector problem',
+    'רצועות שחוקות': 'serpentine belt replacement',
+    'שרשרת טיימינג משוחררת': 'timing chain replacement',
+    'מסבי גלגל תנופה או מזגן': 'alternator AC compressor bearing noise',
+    'נזילת מנוע — אטמי שסתומים': 'valve cover gasket oil leak',
+    'טבעות בוכנה שחוקות': 'piston ring replacement oil consumption',
+    'דליפת ואקום באיסוף': 'intake manifold vacuum leak',
+    'בעיית PCV': 'PCV valve replacement',
+    'חישוק קרוע או גומי שחוק': 'cracked exhaust manifold gasket',
+    'בעיה בסניפת אוויר': 'exhaust air leak fix',
+    'צריכת דלק גבוהה — חיישן חמצן או מזרקים': 'oxygen sensor fuel injector high fuel consumption',
+    'מנוע מאבד כוח — בעיה במצערת או טורבו': 'throttle body turbo power loss',
+    'בעיה בחיישני מנוע': 'engine sensor MAP MAF diagnosis',
+    'פילטר דלק סתום': 'clogged fuel filter replacement',
+    'רדיאטור סתום או דולף': 'radiator leak clogged repair',
+    'תרמוסטט תקוע': 'thermostat stuck replacement',
+    'משאבת מים תקולה': 'water pump replacement',
+    'ראש גליל פגום (אטם ראש)': 'head gasket replacement',
+    'מאוורר קירור תקול': 'radiator cooling fan not working',
+    'סתימה בצינורות קירור': 'coolant hose blockage repair',
+    'סוללה / אלטרנטור': 'alternator battery charging problem',
+    'תקלת אלטרנטור': 'alternator replacement',
+    'נתיכים / ממסרים': 'fuse relay diagnosis car',
+    'חיווט פגום': 'car wiring harness repair',
+    'מתג הצתה תקול': 'ignition switch replacement',
+    'מערכת טעינה — כבלים': 'battery cable corrosion repair',
+    'משאבת דלק חלשה': 'fuel pump replacement',
+    'מזרקים סתומים': 'fuel injector cleaning replacement',
+    'פילטר אוויר סתום': 'air filter replacement',
+    'רגולטור לחץ דלק': 'fuel pressure regulator replacement',
+    'מייבש דלק / מים בדלק': 'water in fuel tank fix',
+    'דליפת דלק': 'fuel leak repair',
+    'זרז סתום': 'catalytic converter clogged replacement',
+    'דליפת אגזוז': 'exhaust leak repair',
+    'חיישן חמצן (O2) תקול': 'oxygen O2 sensor replacement',
+    'צינור אגזוז שבור': 'exhaust pipe repair replacement',
+    'EGR סתום': 'EGR valve cleaning replacement',
+    'משתיק סתום / שבור': 'muffler replacement',
+    'גיר לא מחליף הילוכים — סולנואידים': 'transmission solenoid replacement',
+    'מצמד שחוק': 'clutch replacement',
+    'שמן גיר נמוך / ישן': 'transmission fluid change',
+    'בעיית TCM / חיישני גיר': 'TCM transmission control module',
+    'סנכרון שחוק (ידני)': 'manual transmission synchro replacement',
+    'כבל / מנגנון העברת הילוכים': 'gear shift cable linkage repair',
+    'בולמי זעזועים שחוקים': 'shock absorber strut replacement',
+    'קפיצים שבורים': 'coil spring replacement',
+    'בוכסות / מוטות מייצבים': 'stabilizer bar link bushing replacement',
+    'מיסבי גלגלים': 'wheel bearing replacement',
+    'בעיית גובה — קפיצי אוויר': 'air suspension repair',
+    'זרועות שליטה (בקרה) שחוקות': 'control arm replacement',
+    'הגה כבד — משאבת הגה כוח': 'power steering pump replacement',
+    'טירוזול שחוק': 'tie rod end replacement',
+    'בעיה בתיבת הגה': 'steering rack replacement',
+    'דליפת שמן הגה': 'power steering fluid leak repair',
+    'זווית כיוון גלגלים': 'wheel alignment',
+    'עמוד הגה / ג׳וינט קרדן': 'steering column universal joint repair',
+    'רפידות בלם שחוקות': 'brake pad replacement',
+    'דיסק בלם מעוות': 'warped brake rotor replacement',
+    'דליפה במערכת הבלמים': 'brake fluid leak repair',
+    'בלם יד לא מחזיק': 'parking brake adjustment repair',
+    'מאיץ בלמים (סרוו)': 'brake booster replacement',
+    'קליפר תקוע': 'stuck brake caliper repair',
+    'ABS — חיישן או מודול': 'ABS sensor module repair',
+    'נורת מנוע — חיישן': 'check engine light sensor diagnosis',
+    'מערכת EVAP': 'EVAP system purge valve repair',
+    'בעיה ב-ECU / מחשב מנוע': 'ECU engine control unit diagnosis',
+    'חיישן MAF / MAP': 'MAF MAP sensor cleaning replacement',
+    'מפתח אימובילייזר': 'immobilizer key transponder programming',
+    'CAN Bus / תקשורת': 'CAN bus communication error diagnosis'
+  };
+  // Build vehicle string for YouTube
+  const vStr = vehicle ? `${vehicle.make} ${vehicle.model}` : '';
+  const vYear = vehicle ? vehicle.year : '';
+  const diagEN = DIAG_EN[diag.diagnosis] || diag.diagnosis;
+  // Also translate parts if available
+  const PARTS_EN = {
+    'סליל הצתה':'ignition coil','משאבת דלק':'fuel pump','פילטר דלק':'fuel filter',
+    'מצתים (סט)':'spark plugs','כבלי מצתים':'spark plug wires','מזרקים':'fuel injectors',
+    'חיישן ארכובה':'crankshaft sensor','רצועת/שרשרת טיימינג':'timing chain belt',
+    'מתנע':'starter motor','גלגל תנופה':'flywheel','סולנואיד מתנע':'starter solenoid',
+    'סוללה':'battery','קלמפים':'battery terminals','נתיכים ראשיים':'main fuses',
+    'מפסק התנעה':'ignition switch','כבלי סוללה':'battery cables',
+    'שסתום IAC':'IAC valve','ניקוי מצערת':'throttle body','אטם מצערת':'throttle gasket',
+    'תושבות מנוע (סט)':'engine mounts','בולם גיר':'transmission mount',
+    'רדיאטור':'radiator','תרמוסטט':'thermostat','משאבת מים':'water pump',
+    'אטם ראש':'head gasket','מאוורר קירור':'cooling fan',
+    'אלטרנטור':'alternator','ממסרים':'relays','נתיכים':'fuses',
+    'רפידות בלם':'brake pads','דיסקי בלם':'brake rotors','קליפר':'caliper',
+    'בולמי זעזועים':'shock absorbers','קפיצים':'springs','מוטות מייצבים':'sway bar links',
+    'מצמד':'clutch','שמן גיר':'transmission fluid',
+    'משאבת הגה כוח':'power steering pump','טירוזול':'tie rod end'
+  };
+  const queries = [];
+  // Main repair tutorial query
+  queries.push({
+    label: '🔧 איך לתקן — הדרכה מלאה',
+    query: `how to fix ${diagEN} ${vStr} ${vYear} tutorial`.trim()
+  });
+  // Vehicle-specific diagnosis query
+  queries.push({
+    label: '🔍 אבחון תקלה — ' + vStr,
+    query: `${vStr} ${vYear} ${diagEN} diagnosis`.trim()
+  });
+  // Parts replacement query (use first part)
+  if(diag.parts && diag.parts.length) {
+    const mainPart = diag.parts[0];
+    const partEN = PARTS_EN[mainPart] || mainPart;
+    queries.push({
+      label: '🛠️ החלפת ' + mainPart,
+      query: `how to replace ${partEN} ${vStr} ${vYear}`.trim()
+    });
+  }
+  return queries;
 }
 
 // ── SOP Tree Builder (Symptom-based) ──────────────────────────────────────
