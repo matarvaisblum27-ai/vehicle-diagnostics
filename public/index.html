@@ -270,8 +270,53 @@ function goStep2(){
   if(!S.vehicle)return;goStep(2);
   const v=S.vehicle;
   $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}</div>`;
-  S.systems = DB && DB[v.make] && DB[v.make][v.model] && DB[v.make][v.model][v.year] ? DB[v.make][v.model][v.year] : {};
+  S.systems = findVehicleIssues(v.make, v.model, v.year);
   renderSystems();
+}
+function findVehicleIssues(make, model, year) {
+  if (!DB || !DB[make]) return getGenericIssues();
+  // 1. Exact match
+  if (DB[make][model] && DB[make][model][year]) return DB[make][model][year];
+  // 2. Same model, closest year
+  if (DB[make][model]) {
+    const years = Object.keys(DB[make][model]).map(Number).sort((a,b)=>Math.abs(a-year)-Math.abs(b-year));
+    if (years.length) return DB[make][model][String(years[0])];
+  }
+  // 3. Similar model name (partial match)
+  const modelLower = model.toLowerCase();
+  for (const m of Object.keys(DB[make])) {
+    if (m.toLowerCase().includes(modelLower) || modelLower.includes(m.toLowerCase())) {
+      const yrs = Object.keys(DB[make][m]).sort((a,b)=>Math.abs(Number(a)-year)-Math.abs(Number(b)-year));
+      if (yrs.length) return DB[make][m][yrs[0]];
+    }
+  }
+  // 4. Any model from same make, closest year
+  const allModels = Object.keys(DB[make]);
+  if (allModels.length) {
+    let best = null, bestDiff = 9999;
+    for (const m of allModels) {
+      for (const y of Object.keys(DB[make][m])) {
+        const diff = Math.abs(Number(y) - year);
+        if (diff < bestDiff) { bestDiff = diff; best = DB[make][m][y]; }
+      }
+    }
+    if (best) return best;
+  }
+  return getGenericIssues();
+}
+function getGenericIssues() {
+  return {
+    engine: ["רעש חריג מהמנוע","דליפת שמן","חוסר כוח בעליות","צריכת דלק מוגברת","רעידות בסיבובים נמוכים"],
+    brakes: ["רעש בבלמים","רעידות בעת בלימה","דוושת בלם רכה","בלאי מוקדם של רפידות"],
+    electrical: ["בעיות סוללה","תקלות תאורה","מסך מולטימדיה לא מגיב","חיישנים תקולים"],
+    cooling: ["חימום יתר","דליפת נוזל קירור","מאוורר לא עובד"],
+    fuel: ["צריכת דלק גבוהה","ריח דלק","בעיות התנעה"],
+    transmission: ["העברת הילוכים קשה","רעש בהילוכים","דליפת שמן גיר"],
+    exhaust: ["רעש מהאגזוז","עשן שחור","ריח מוזר"],
+    steering: ["כבדות בהגה","רעש בסיבובים","רעידות בהגה"],
+    suspension: ["חריקות ממתלים","נסיעה קשה","רכב נוטה לצד"],
+    electronics: ["נורית אזהרה דולקת","בעיות במערכת ההצתה","חיישן חמצן תקול"]
+  };
 }
 function renderSystems(){
   const g=$('sys-grid');g.innerHTML='';
