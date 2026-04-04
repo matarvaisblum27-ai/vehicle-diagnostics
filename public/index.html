@@ -274,20 +274,36 @@ function goStep2(){
   renderSystems();
 }
 function findVehicleIssues(make, model, year) {
-  if (!DB || !DB[make]) return getGenericIssues();
-  // 1. Exact match
-  if (DB[make][model] && DB[make][model][year]) return DB[make][model][year];
-  // 2. Same model, closest year
-  if (DB[make][model]) {
-    const years = Object.keys(DB[make][model]).map(Number).sort((a,b)=>Math.abs(a-year)-Math.abs(b-year));
-    if (years.length) return DB[make][model][String(years[0])];
+  if (!DB) return getGenericIssues();
+  // Find make (case-insensitive)
+  let dbMake = DB[make];
+  if (!dbMake) {
+    const makeUpper = make.toUpperCase();
+    for (const k of Object.keys(DB)) {
+      if (k.toUpperCase() === makeUpper) { dbMake = DB[k]; break; }
+    }
   }
-  // 3. Similar model name (partial match)
+  if (!dbMake) return getGenericIssues();
+  // Find model (case-insensitive)
+  let dbModel = dbMake[model];
+  if (!dbModel) {
+    const modelUpper = model.toUpperCase();
+    for (const k of Object.keys(dbMake)) {
+      if (k.toUpperCase() === modelUpper) { dbModel = dbMake[k]; break; }
+    }
+  }
+  // 1. Exact model found
+  if (dbModel) {
+    if (dbModel[year]) return dbModel[year];
+    const years = Object.keys(dbModel).map(Number).sort((a,b)=>Math.abs(a-year)-Math.abs(b-year));
+    if (years.length) return dbModel[String(years[0])];
+  }
+  // 2. Partial model name match
   const modelLower = model.toLowerCase();
-  for (const m of Object.keys(DB[make])) {
+  for (const m of Object.keys(dbMake)) {
     if (m.toLowerCase().includes(modelLower) || modelLower.includes(m.toLowerCase())) {
-      const yrs = Object.keys(DB[make][m]).sort((a,b)=>Math.abs(Number(a)-year)-Math.abs(Number(b)-year));
-      if (yrs.length) return DB[make][m][yrs[0]];
+      const yrs = Object.keys(dbMake[m]).sort((a,b)=>Math.abs(Number(a)-year)-Math.abs(Number(b)-year));
+      if (yrs.length) return dbMake[m][yrs[0]];
     }
   }
   // 4. Any model from same make, closest year
