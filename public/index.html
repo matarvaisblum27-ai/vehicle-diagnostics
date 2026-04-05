@@ -344,42 +344,43 @@ async function lookupPlate(){
 async function fetchExtraDetails(plate){
   const el=$('extra-details');if(!el)return;
   try{
-    const r=await fetch('/api/vehicle-details?plate='+plate);
+    // Pass degem_cd and tozeret_cd if available to speed up the API
+    const p=S.vehicle?.plate||{};
+    let url='/api/vehicle-details?plate='+plate;
+    if(p.degem_cd)url+='&degem_cd='+p.degem_cd;
+    if(p.tozeret_cd)url+='&tozeret_cd='+p.tozeret_cd;
+    const r=await fetch(url);
     const d=await r.json();
     if(d.error||!d.found){
-      el.innerHTML=`<div style="color:var(--g400);font-size:.85rem">ℹ️ פרטים נוספים לא זמינים${d.link?' — <a href="'+d.link+'" target="_blank" style="color:var(--pri)">צפה במשומשת</a>':''}</div>`;
+      el.innerHTML=`<div style="color:var(--g400);font-size:.85rem">ℹ️ <a href="https://meshumeshet.com/c/${plate}" target="_blank" style="color:var(--pri)">לחץ כאן לפרטים נוספים במשומשת (שלדה, מנוע)</a></div>`;
       return;
     }
-    // Store extra details on vehicle object
     if(S.vehicle)S.vehicle.extra=d;
     let h='<div style="margin-top:8px;padding:12px;background:linear-gradient(135deg,#f0f9ff,#e8f4fd);border-radius:8px;border:1px solid #bae6fd">';
-    h+='<div style="font-weight:700;color:#0369a1;margin-bottom:8px;font-size:.95rem">📋 פרטים טכניים נוספים</div>';
+    h+='<div style="font-weight:700;color:#0369a1;margin-bottom:8px;font-size:.95rem">📋 פרטים טכניים</div>';
+    // Meshumeshet link for chassis/engine (not available from gov API)
+    h+=`<div style="padding:6px 0;border-bottom:1px solid #e0f2fe;font-size:.9rem">`;
+    h+=`<a href="https://meshumeshet.com/c/${plate}" target="_blank" style="color:#0369a1;text-decoration:none;font-weight:600">🔗 מספר שלדה + מספר מנוע — לחץ כאן (משומשת)</a></div>`;
     const fields=[
-      ['mispar_shlada','מספר שלדה','🔗'],
-      ['mispar_manoa','מספר מנוע','⚙️'],
       ['nefach_manoa','נפח מנוע','📐'],
-      ['sug_hiluchim','סוג הילוכים / גיר','🔄'],
-      ['totzeret','תוצרת / ארץ ייצור','🌍'],
-      ['tzamig_kidmi','צמיג קדמי','🛞'],
-      ['tzamig_achori','צמיג אחורי','🛞'],
+      ['koach_sus','כוח סוס','🐎'],
+      ['totzeret','ארץ ייצור','🌍'],
+      ['hanaa','הנעה','🔄'],
+      ['mispar_dlatot','דלתות','🚪'],
+      ['mispar_moshvim','מושבים','💺'],
+      ['safety','מערכות בטיחות','🛡️'],
     ];
-    let count=0;
     fields.forEach(([key,label,icon])=>{
       if(d[key]){
         h+=`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e0f2fe;font-size:.9rem">`;
         h+=`<span style="color:#475569">${icon} ${label}</span>`;
         h+=`<span style="font-weight:600;color:#1e293b;direction:ltr">${d[key]}</span></div>`;
-        count++;
       }
     });
-    if(count===0){
-      h+='<div style="color:var(--g400);font-size:.85rem">לא נמצאו פרטים נוספים</div>';
-    }
-    if(d.link)h+=`<div style="margin-top:8px;text-align:center"><a href="${d.link}" target="_blank" style="color:#0369a1;font-size:.85rem;text-decoration:none">🔗 צפה בפרופיל מלא במשומשת</a></div>`;
     h+='</div>';
     el.innerHTML=h;
   }catch(e){
-    el.innerHTML='<div style="color:var(--g400);font-size:.85rem">ℹ️ לא ניתן לטעון פרטים נוספים</div>';
+    el.innerHTML=`<div style="color:var(--g400);font-size:.85rem">ℹ️ <a href="https://meshumeshet.com/c/${plate}" target="_blank" style="color:var(--pri)">לחץ כאן לפרטים נוספים (משומשת)</a></div>`;
   }
 }
 function populateMakes(){

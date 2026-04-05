@@ -1,219 +1,119 @@
-// Vercel Serverless Function — Multi-source vehicle details
-// Endpoint: /api/vehicle-details?plate=38338901
-// Sources: 1) data.gov.il model specs  2) meshumeshet.com scrape
-// Returns: chassis number, engine number, displacement, gear type, tire dimensions, etc.
+// Vercel Serverless Function — Vehicle technical specs from data.gov.il
+// Endpoint: /api/vehicle-details?plate=38338901&degem_cd=15&tozeret_cd=683
+// Uses government model specs database for engine, weight, features etc.
+// Chassis/engine numbers only available on meshumeshet.com (linked)
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  const { plate } = req.query;
+  const { plate, degem_cd, tozeret_cd } = req.query;
   if (!plate) {
     return res.status(400).json({ error: 'חסר מספר רישוי' });
   }
 
   const plateClean = plate.replace(/[^0-9]/g, '');
-  if (plateClean.length < 5 || plateClean.length > 8) {
-    return res.status(400).json({ error: 'מספר רישוי לא תקין' });
-  }
+  const BASE_URL = 'https://data.gov.il/api/3/action/datastore_search';
 
-  const details = {};
-  const errors = [];
+  // We need degem_cd and tozeret_cd to look up model specs
+  // If not provided as params, get them from the main vehicle record first
+  let dCode = degem_cd;
+  let tCode = tozeret_cd;
 
-  // ── Source 1: data.gov.il — Get full vehicle record (may have extra fields) ──
-  try {
-    const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
-    const BASE_URL = 'https://data.gov.il/api/3/action/datastore_search';
-    const plateInt = parseInt(plateClean, 10);
-    const url1 = `${BASE_URL}?resource_id=${RESOURCE_ID}&filters=${encodeURIComponent(JSON.stringify({ mispar_rechev: plateInt }))}&limit=1`;
-
-    const resp = await fetch(url1, { signal: AbortSignal.timeout(10000) });
-    if (resp.ok) {
-      const data = await resp.json();
-      const records = data?.result?.records || [];
-      if (records.length) {
-        const rec = records[0];
-        // Pass through ALL fields from the government record
-        for (const [k, v] of Object.entries(rec)) {
-          if (v && k !== '_id' && k !== 'rank') {
-            details['gov_' + k] = String(v).trim();
-          }
-        }
-        // Also store degem_cd for model specs lookup
-        if (rec.degem_cd) details._degem_cd = String(rec.degem_cd);
-        if (rec.tozeret_cd) details._tozeret_cd = String(rec.tozeret_cd);
-      }
-    }
-  } catch (e) {
-    errors.push('gov-main: ' + e.message);
-  }
-
-  // ── Source 2: data.gov.il — Vehicle model specs (degem-rechev) ──
-  // This resource has engine displacement, horsepower, weight, etc.
-  if (details._degem_cd) {
+  if (!dCode || !tCode) {
     try {
-      const SPECS_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';
-      const BASE_URL = 'https://data.gov.il/api/3/action/datastore_search';
-      const filters = { degem_cd: parseInt(details._degem_cd, 10) };
-      if (details._tozeret_cd) filters.tozeret_cd = parseInt(details._tozeret_cd, 10);
-      const url2 = `${BASE_URL}?resource_id=${SPECS_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=1`;
-
-      const resp = await fetch(url2, { signal: AbortSignal.timeout(10000) });
+      const RESOURCE_ID = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+      const plateInt = parseInt(plateClean, 10);
+      const url = `${BASE_URL}?resource_id=${RESOURCE_ID}&filters=${encodeURIComponent(JSON.stringify({ mispar_rechev: plateInt }))}&limit=1`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (resp.ok) {
         const data = await resp.json();
-        const records = data?.result?.records || [];
-        if (records.length) {
-          const rec = records[0];
-          for (const [k, v] of Object.entries(rec)) {
-            if (v && k !== '_id' && k !== 'rank') {
-              details['specs_' + k] = String(v).trim();
-            }
-          }
+        const rec = data?.result?.records?.[0];
+        if (rec) {
+          dCode = dCode || String(rec.degem_cd || '');
+          tCode = tCode || String(rec.tozeret_cd || '');
         }
       }
-    } catch (e) {
-      errors.push('gov-specs: ' + e.message);
-    }
+    } catch (e) { /* continue with what we have */ }
   }
 
-  // ── Source 3: meshumeshet.com scrape ──
-  try {
-    const mUrl = `https://meshumeshet.com/c/${plateClean}`;
-    const resp = await fetch(mUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'he-IL,he;q=0.9,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Referer': 'https://meshumeshet.com/',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'same-origin',
-      },
-      signal: AbortSignal.timeout(12000),
-      redirect: 'follow',
+  if (!dCode) {
+    return res.status(200).json({
+      plate: plateClean,
+      found: false,
+      link: `https://meshumeshet.com/c/${plateClean}`,
     });
+  }
 
-    if (resp.ok) {
-      const html = await resp.text();
-      details._meshumeshet_link = mUrl;
-      details._meshumeshet_status = 'ok';
+  // Look up model specs from degem-rechev database
+  try {
+    const SPECS_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';
+    const filters = { degem_cd: parseInt(dCode, 10) };
+    if (tCode) filters.tozeret_cd = parseInt(tCode, 10);
+    const url = `${BASE_URL}?resource_id=${SPECS_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(filters))}&limit=1`;
 
-      // meshumeshet.com uses <dl><dt>label</dt><dd>value</dd></dl> structure
-      const FIELD_MAP = {
-        'מספר שלדה': 'mispar_shlada',
-        'מספר מנוע': 'mispar_manoa',
-        'נפח מנוע': 'nefach_manoa',
-        'גיר': 'sug_hiluchim',
-        'סוג הילוכים': 'sug_hiluchim',
-        'תת דגם': 'tat_degem',
-        'תוצרת': 'totzeret',
-        'מידות צמיג קדמי': 'tzamig_kidmi',
-        'צמיג קדמי': 'tzamig_kidmi',
-        'מידות צמיג אחורי': 'tzamig_achori',
-        'צמיג אחורי': 'tzamig_achori',
-        'כוח סוס': 'koach_sus',
-        'אגרת רכב': 'agrat_rechev',
-        'משקל כולל': 'mishkal_kolel',
-        'משקל עצמי': 'mishkal_atzmi',
-        'מספר דלתות': 'mispar_dlatot',
-        'מספר מושבים': 'mispar_moshvim',
-      };
-
-      // Primary pattern: <dt>label</dt>\n<dd>value</dd> (exact meshumeshet structure)
-      for (const [heLabel, fieldKey] of Object.entries(FIELD_MAP)) {
-        if (details[fieldKey]) continue;
-        const escaped = heLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-        // Pattern: <dt>label</dt> ... <dd>value</dd>
-        const dtdd = new RegExp('<dt[^>]*>\\s*' + escaped + '\\s*<\\/dt>\\s*<dd[^>]*>\\s*([^<]+)', 'i');
-        const m = html.match(dtdd);
-        if (m && m[1].trim().length > 0) {
-          details[fieldKey] = m[1].trim();
-          continue;
-        }
-
-        // Fallback: any tag containing label, followed by value in next tag
-        const fallback = new RegExp(escaped + '\\s*<\\/[^>]+>\\s*<[^>]+>\\s*([^<]+)', 'i');
-        const mf = html.match(fallback);
-        if (mf && mf[1].trim().length > 0) {
-          details[fieldKey] = mf[1].trim();
-        }
-      }
-    } else {
-      details._meshumeshet_status = 'blocked_' + resp.status;
-      errors.push('meshumeshet: HTTP ' + resp.status);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) {
+      return res.status(200).json({ plate: plateClean, found: false, link: `https://meshumeshet.com/c/${plateClean}` });
     }
-  } catch (e) {
-    details._meshumeshet_status = 'error';
-    errors.push('meshumeshet: ' + e.message);
+
+    const data = await resp.json();
+    const rec = data?.result?.records?.[0];
+    if (!rec) {
+      return res.status(200).json({ plate: plateClean, found: false, link: `https://meshumeshet.com/c/${plateClean}` });
+    }
+
+    // Map specs to clean output
+    const output = {
+      plate: plateClean,
+      found: true,
+      link: `https://meshumeshet.com/c/${plateClean}`,
+    };
+
+    // Engine displacement (field name in API: nefah_manoa — no 'c')
+    if (rec.nefah_manoa) output.nefach_manoa = rec.nefah_manoa + ' סמ"ק';
+    // Horsepower (field name: koah_sus — no 'c')
+    if (rec.koah_sus) output.koach_sus = rec.koah_sus + ' כ"ס';
+    // Total weight
+    if (rec.mishkal_kolel) output.mishkal_kolel = rec.mishkal_kolel + ' ק"ג';
+    // Doors
+    if (rec.mispar_dlatot) output.mispar_dlatot = String(rec.mispar_dlatot);
+    // Seats
+    if (rec.mispar_moshavim) output.mispar_moshvim = String(rec.mispar_moshavim);
+    // Drivetrain
+    if (rec.hanaa_nm) output.hanaa = rec.hanaa_nm;
+    // Transmission technology
+    if (rec.technologiat_hanaa_nm) output.technologia = rec.technologiat_hanaa_nm;
+    // Country of origin
+    if (rec.tozeret_eretz_nm) output.totzeret = rec.tozeret_eretz_nm;
+    // Body type
+    if (rec.merkav) output.merkav = rec.merkav;
+    // Fuel type from specs
+    if (rec.delek_nm) output.sug_delek = rec.delek_nm;
+    // Trim level
+    if (rec.ramat_gimur) output.ramat_gimur = rec.ramat_gimur;
+    // Green index
+    if (rec.madad_yarok) output.madad_yarok = String(rec.madad_yarok);
+    // Pollution group
+    if (rec.kvutzat_zihum) output.kvutzat_zihum = String(rec.kvutzat_zihum);
+    // Safety features
+    const safety = [];
+    if (rec.abs_ind === '1' || rec.abs_ind === 1) safety.push('ABS');
+    if (rec.bakarat_yatzivut_ind === '1' || rec.bakarat_yatzivut_ind === 1) safety.push('בקרת יציבות');
+    if (rec.mispar_kariot_avir) safety.push(rec.mispar_kariot_avir + ' כריות אוויר');
+    if (rec.nitur_merhak_milfanim_ind === '1' || rec.nitur_merhak_milfanim_ind === 1) safety.push('חיישן מרחק');
+    if (rec.teura_automatit_benesiya_kadima_ind === '1' || rec.teura_automatit_benesiya_kadima_ind === 1) safety.push('בלימת חירום');
+    if (safety.length) output.safety = safety.join(', ');
+    // Towing capacity
+    if (rec.kosher_grira_im_blamim) output.grira = rec.kosher_grira_im_blamim + ' ק"ג';
+
+    return res.status(200).json(output);
+
+  } catch (err) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      return res.status(504).json({ error: 'data.gov.il לא הגיב — נסה שוב.' });
+    }
+    return res.status(500).json({ error: `שגיאה: ${err.message}` });
   }
-
-  // ── Normalize output ──
-  // Map government fields to our standard keys
-  const output = {
-    plate: plateClean,
-    source: 'multi',
-    found: false,
-    link: details._meshumeshet_link || `https://meshumeshet.com/c/${plateClean}`,
-  };
-
-  // Chassis number
-  if (details.mispar_shlada) output.mispar_shlada = details.mispar_shlada;
-  // Engine number
-  if (details.mispar_manoa) output.mispar_manoa = details.mispar_manoa;
-  // Engine displacement - from specs or meshumeshet
-  if (details.nefach_manoa) {
-    output.nefach_manoa = details.nefach_manoa;
-  } else if (details.specs_nefach_manoa) {
-    output.nefach_manoa = details.specs_nefach_manoa + ' סמ"ק';
-  }
-  // Horsepower
-  if (details.koach_sus) {
-    output.koach_sus = details.koach_sus;
-  } else if (details.specs_koah_sus) {
-    output.koach_sus = details.specs_koah_sus + ' כ"ס';
-  }
-  // Gear type
-  if (details.sug_hiluchim) output.sug_hiluchim = details.sug_hiluchim;
-  // Sub-model
-  if (details.tat_degem) output.tat_degem = details.tat_degem;
-  // Country of origin
-  if (details.totzeret) output.totzeret = details.totzeret;
-  // Tires
-  if (details.tzamig_kidmi) output.tzamig_kidmi = details.tzamig_kidmi;
-  if (details.tzamig_achori) output.tzamig_achori = details.tzamig_achori;
-  // Weight
-  if (details.mishkal_kolel) {
-    output.mishkal_kolel = details.mishkal_kolel;
-  } else if (details.specs_mishkal_kolel) {
-    output.mishkal_kolel = details.specs_mishkal_kolel + ' ק"ג';
-  }
-  if (details.mishkal_atzmi) output.mishkal_atzmi = details.mishkal_atzmi;
-  // Doors/seats
-  if (details.mispar_dlatot) output.mispar_dlatot = details.mispar_dlatot;
-  if (details.mispar_moshvim) output.mispar_moshvim = details.mispar_moshvim;
-  // Vehicle fee
-  if (details.agrat_rechev) output.agrat_rechev = details.agrat_rechev;
-
-  // Check if we got any useful fields
-  const usefulKeys = ['mispar_shlada', 'mispar_manoa', 'nefach_manoa', 'koach_sus', 'sug_hiluchim',
-    'totzeret', 'tzamig_kidmi', 'tzamig_achori', 'mishkal_kolel', 'mishkal_atzmi',
-    'mispar_dlatot', 'mispar_moshvim', 'agrat_rechev', 'tat_degem'];
-  output.found = usefulKeys.some(k => output[k]);
-
-  if (errors.length) output._errors = errors;
-  if (details._meshumeshet_status) output._meshumeshet_status = details._meshumeshet_status;
-
-  // Also pass through raw gov specs fields that might be useful
-  const specFields = Object.entries(details).filter(([k]) => k.startsWith('specs_'));
-  if (specFields.length) {
-    output._raw_specs = {};
-    specFields.forEach(([k, v]) => { output._raw_specs[k.replace('specs_', '')] = v; });
-  }
-
-  return res.status(200).json(output);
 }
