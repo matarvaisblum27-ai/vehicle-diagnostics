@@ -102,19 +102,15 @@ module.exports = async function handler(req, res) {
       details._meshumeshet_link = mUrl;
       details._meshumeshet_status = 'ok';
 
-      // Hebrew label → field key mapping
+      // meshumeshet.com uses <dl><dt>label</dt><dd>value</dd></dl> structure
       const FIELD_MAP = {
         'מספר שלדה': 'mispar_shlada',
-        'מס שלדה': 'mispar_shlada',
         'מספר מנוע': 'mispar_manoa',
-        'מס מנוע': 'mispar_manoa',
         'נפח מנוע': 'nefach_manoa',
-        'נפח המנוע': 'nefach_manoa',
         'גיר': 'sug_hiluchim',
         'סוג הילוכים': 'sug_hiluchim',
         'תת דגם': 'tat_degem',
         'תוצרת': 'totzeret',
-        'ארץ ייצור': 'totzeret',
         'מידות צמיג קדמי': 'tzamig_kidmi',
         'צמיג קדמי': 'tzamig_kidmi',
         'מידות צמיג אחורי': 'tzamig_achori',
@@ -127,42 +123,25 @@ module.exports = async function handler(req, res) {
         'מספר מושבים': 'mispar_moshvim',
       };
 
+      // Primary pattern: <dt>label</dt>\n<dd>value</dd> (exact meshumeshet structure)
       for (const [heLabel, fieldKey] of Object.entries(FIELD_MAP)) {
-        if (details[fieldKey]) continue; // already have from another source
+        if (details[fieldKey]) continue;
         const escaped = heLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // Pattern: label text, then closing tag, then opening tag, then value
-        const p1 = new RegExp(escaped + '\\s*<\\/[^>]+>\\s*<[^>]+>\\s*([^<]+)', 'i');
-        const m1 = html.match(p1);
-        if (m1 && m1[1].trim().length > 0) {
-          details[fieldKey] = m1[1].trim();
+        // Pattern: <dt>label</dt> ... <dd>value</dd>
+        const dtdd = new RegExp('<dt[^>]*>\\s*' + escaped + '\\s*<\\/dt>\\s*<dd[^>]*>\\s*([^<]+)', 'i');
+        const m = html.match(dtdd);
+        if (m && m[1].trim().length > 0) {
+          details[fieldKey] = m[1].trim();
           continue;
         }
 
-        // Pattern: label in attribute or text, followed by value after some tags
-        const p2 = new RegExp(escaped + '(?:[^<]{0,5})<\\/[^>]*>(?:\\s*<[^>]*>)*\\s*([^<]{1,80})', 'i');
-        const m2 = html.match(p2);
-        if (m2 && m2[1].trim().length > 0 && m2[1].trim() !== heLabel) {
-          details[fieldKey] = m2[1].trim();
-          continue;
+        // Fallback: any tag containing label, followed by value in next tag
+        const fallback = new RegExp(escaped + '\\s*<\\/[^>]+>\\s*<[^>]+>\\s*([^<]+)', 'i');
+        const mf = html.match(fallback);
+        if (mf && mf[1].trim().length > 0) {
+          details[fieldKey] = mf[1].trim();
         }
-
-        // Pattern: inside a table cell or div pair
-        const p3 = new RegExp('<[^>]*>\\s*' + escaped + '\\s*<\\/[^>]*>[\\s\\S]{0,200}?<[^>]*>\\s*([^<]{2,80})\\s*<\\/[^>]*>', 'i');
-        const m3 = html.match(p3);
-        if (m3 && m3[1].trim().length > 0) {
-          details[fieldKey] = m3[1].trim();
-        }
-      }
-
-      // Try JSON-LD
-      const jsonLd = html.match(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i);
-      if (jsonLd) {
-        try {
-          const ld = JSON.parse(jsonLd[1]);
-          if (ld.vehicleIdentificationNumber && !details.mispar_shlada) details.mispar_shlada = ld.vehicleIdentificationNumber;
-          if (ld.vehicleEngine?.engineDisplacement && !details.nefach_manoa) details.nefach_manoa = ld.vehicleEngine.engineDisplacement;
-        } catch (e) { /* ignore */ }
       }
     } else {
       details._meshumeshet_status = 'blocked_' + resp.status;
