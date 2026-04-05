@@ -320,19 +320,77 @@ async function lookupPlate(){
     let h='<div class="pr"><div class="alert alert-s">רכב נמצא!</div>';
     h+=`<div class="f"><span class="fl">יצרן:</span>${d.tozeret_nm}${d.en_make?' ('+d.en_make+')':''}</div>`;
     h+=`<div class="f"><span class="fl">דגם:</span>${d.kinuy_mishari}${d.en_model?' ('+d.en_model+')':''}</div>`;
+    if(d.ramat_gimur)h+=`<div class="f"><span class="fl">תת דגם:</span>${d.ramat_gimur}</div>`;
     h+=`<div class="f"><span class="fl">שנת ייצור:</span>${d.shnat_yitzur}</div>`;
     if(d.sug_delek_nm)h+=`<div class="f"><span class="fl">סוג דלק:</span>${d.sug_delek_nm}</div>`;
     if(d.tzeva_rechev)h+=`<div class="f"><span class="fl">צבע:</span>${d.tzeva_rechev}</div>`;
     if(d.tokef_dt)h+=`<div class="f"><span class="fl">תוקף רישיון:</span>${d.tokef_dt}</div>`;
+    if(d.mivchan_acharon_dt)h+=`<div class="f"><span class="fl">טסט אחרון:</span>${d.mivchan_acharon_dt}</div>`;
+    if(d.moed_aliya_lakvish)h+=`<div class="f"><span class="fl">עלייה לכביש:</span>${d.moed_aliya_lakvish}</div>`;
+    if(d.baalut)h+=`<div class="f"><span class="fl">בעלות:</span>${d.baalut}</div>`;
+    // Extra details placeholder - will be filled by meshumeshet fetch
+    h+=`<div id="extra-details" style="margin-top:12px"><div style="color:var(--g400);font-size:.85rem">⏳ טוען פרטים נוספים ממשומשת...</div></div>`;
     // Check if in DB
     const inDb = DB && DB[S.vehicle.make] && DB[S.vehicle.make][S.vehicle.model] && DB[S.vehicle.make][S.vehicle.model][S.vehicle.year];
     if(!inDb)h+='<div class="alert alert-i" style="margin-top:12px">הרכב זוהה, אך אין מידע על תקלות ספציפיות לדגם זה במסד הנתונים. ניתן להמשיך עם הזנה ידנית.</div>';
     h+='</div>';
     $('plate-res').innerHTML=h;$('plate-res').classList.remove('hid');chk1();
+    // Fetch extra details from meshumeshet.com in background
+    fetchExtraDetails(p);
   }catch(e){
     $('plate-res').innerHTML='<div class="alert alert-e">שגיאה: '+e.message+'</div>';
     $('plate-res').classList.remove('hid');
   }finally{b.disabled=false;b.textContent='חפש';}
+}
+async function fetchExtraDetails(plate){
+  const el=$('extra-details');if(!el)return;
+  try{
+    const r=await fetch('/api/vehicle-details?plate='+plate);
+    const d=await r.json();
+    if(d.error||!d.found){
+      el.innerHTML=`<div style="color:var(--g400);font-size:.85rem">ℹ️ פרטים נוספים לא זמינים${d.link?' — <a href="'+d.link+'" target="_blank" style="color:var(--pri)">צפה במשומשת</a>':''}</div>`;
+      return;
+    }
+    // Store extra details on vehicle object
+    if(S.vehicle)S.vehicle.extra=d;
+    let h='<div style="margin-top:8px;padding:12px;background:linear-gradient(135deg,#f0f9ff,#e8f4fd);border-radius:8px;border:1px solid #bae6fd">';
+    h+='<div style="font-weight:700;color:#0369a1;margin-bottom:8px;font-size:.95rem">📋 פרטים טכניים נוספים</div>';
+    const fields=[
+      ['mispar_shlada','מספר שלדה','🔗'],
+      ['mispar_manoa','מספר מנוע','⚙️'],
+      ['nefach_manoa','נפח מנוע','📐'],
+      ['koach_sus','כוח סוס','🐎'],
+      ['sug_hiluchim','סוג הילוכים / גיר','🔄'],
+      ['tat_degem','תת דגם','📝'],
+      ['totzeret','תוצרת / ארץ ייצור','🌍'],
+      ['tzamig_kidmi','צמיג קדמי','🛞'],
+      ['tzamig_achori','צמיג אחורי','🛞'],
+      ['mishkal_kolel','משקל כולל','⚖️'],
+      ['mishkal_atzmi','משקל עצמי','⚖️'],
+      ['mispar_dlatot','מספר דלתות','🚪'],
+      ['mispar_moshvim','מספר מושבים','💺'],
+      ['agrat_rechev','אגרת רכב','💰'],
+      ['test_acharon','טסט אחרון','📅'],
+      ['tokef_rishion','תוקף רישיון','📅'],
+    ];
+    let count=0;
+    fields.forEach(([key,label,icon])=>{
+      if(d[key]){
+        h+=`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #e0f2fe;font-size:.9rem">`;
+        h+=`<span style="color:#475569">${icon} ${label}</span>`;
+        h+=`<span style="font-weight:600;color:#1e293b;direction:ltr">${d[key]}</span></div>`;
+        count++;
+      }
+    });
+    if(count===0){
+      h+='<div style="color:var(--g400);font-size:.85rem">לא נמצאו פרטים נוספים</div>';
+    }
+    if(d.link)h+=`<div style="margin-top:8px;text-align:center"><a href="${d.link}" target="_blank" style="color:#0369a1;font-size:.85rem;text-decoration:none">🔗 צפה בפרופיל מלא במשומשת</a></div>`;
+    h+='</div>';
+    el.innerHTML=h;
+  }catch(e){
+    el.innerHTML='<div style="color:var(--g400);font-size:.85rem">ℹ️ לא ניתן לטעון פרטים נוספים</div>';
+  }
 }
 function populateMakes(){
   if(!DB)return;const s=$('s-make');
@@ -409,7 +467,17 @@ function goStep2(){
   const fColor = FUEL_COLORS[S.vType.fuel];
   let badges = `<span style="background:${fColor};padding:3px 10px;border-radius:6px;font-size:.85rem;font-weight:600">${fLabel}</span>`;
   if(S.vType.turbo) badges += `<span style="background:#fef3c7;padding:3px 10px;border-radius:6px;font-size:.85rem;font-weight:600">🌀 טורבו</span>`;
-  $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${badges}</div></div>`;
+  let extraInfo='';
+  if(v.extra){
+    const e=v.extra;
+    const parts=[];
+    if(e.nefach_manoa)parts.push('נפח: '+e.nefach_manoa);
+    if(e.koach_sus)parts.push('כ"ס: '+e.koach_sus);
+    if(e.sug_hiluchim)parts.push('גיר: '+e.sug_hiluchim);
+    if(e.mispar_shlada)parts.push('שלדה: '+e.mispar_shlada);
+    if(parts.length)extraInfo=`<div style="font-size:.82rem;color:#475569;margin-top:4px">${parts.join(' | ')}</div>`;
+  }
+  $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${badges}</div>${extraInfo}</div>`;
   renderSystems();
 }
 function renderSystems(){
