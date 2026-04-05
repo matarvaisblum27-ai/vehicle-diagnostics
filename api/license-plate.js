@@ -153,6 +153,35 @@ module.exports = async function handler(req, res) {
       if (k === '_id' || k === 'rank' || knownFields.includes(k)) continue;
       if (v !== null && v !== undefined && v !== '') result[k] = v;
     }
+
+    // Also fetch model specs for gear type (automatic_ind) and engine displacement
+    if (rec.degem_cd && rec.tozeret_cd) {
+      try {
+        const SPECS_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';
+        const sFilters = { degem_cd: rec.degem_cd, tozeret_cd: rec.tozeret_cd };
+        const sUrl = `${BASE_URL}?resource_id=${SPECS_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(sFilters))}&limit=1`;
+        const sResp = await fetch(sUrl, { signal: AbortSignal.timeout(8000) });
+        if (sResp.ok) {
+          const sData = await sResp.json();
+          const spec = sData?.result?.records?.[0];
+          if (spec) {
+            // Gear type
+            if (spec.automatic_ind !== null && spec.automatic_ind !== undefined) {
+              const gearVal = Number(spec.automatic_ind);
+              result.sug_gear = gearVal === 1 ? 'אוטומט' : gearVal === 2 ? 'רובוטי' : 'ידני';
+            }
+            // Engine displacement (nefah_manoa — no 'c')
+            if (spec.nefah_manoa) result.nefach_manoa = spec.nefah_manoa + ' סמ"ק';
+            // Horsepower
+            if (spec.koah_sus) result.koach_sus = spec.koah_sus + ' כ"ס';
+          }
+        }
+      } catch (e) {
+        console.log('[specs] Error:', e.message);
+        // Non-critical — continue without specs
+      }
+    }
+
     return res.status(200).json(result);
 
   } catch (err) {

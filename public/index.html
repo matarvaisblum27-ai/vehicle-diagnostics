@@ -327,8 +327,10 @@ async function lookupPlate(){
     if(d.tokef_dt)h+=`<div class="f"><span class="fl">תוקף רישיון:</span>${d.tokef_dt}</div>`;
     // Chassis number — from gov API field "misgeret"
     if(d.misgeret)h+=`<div class="f" style="background:#ecfdf5;padding:6px 8px;border-radius:6px;margin-top:4px"><span class="fl" style="color:#065f46">🔗 מספר שלדה:</span><span style="font-weight:700;color:#065f46;direction:ltr;letter-spacing:1px">${d.misgeret}</span></div>`;
-    // Engine model
-    if(d.degem_manoa)h+=`<div class="f" style="background:#ecfdf5;padding:6px 8px;border-radius:6px"><span class="fl" style="color:#065f46">⚙️ דגם מנוע:</span><span style="font-weight:700;color:#065f46;direction:ltr">${d.degem_manoa}</span></div>`;
+    // Engine model + displacement
+    if(d.degem_manoa)h+=`<div class="f" style="background:#ecfdf5;padding:6px 8px;border-radius:6px"><span class="fl" style="color:#065f46">⚙️ דגם מנוע:</span><span style="font-weight:700;color:#065f46;direction:ltr">${d.degem_manoa}${d.nefach_manoa?' ('+d.nefach_manoa+')':''}</span></div>`;
+    // Gear type
+    if(d.sug_gear)h+=`<div class="f" style="background:#ecfdf5;padding:6px 8px;border-radius:6px"><span class="fl" style="color:#065f46">🔄 גיר:</span><span style="font-weight:700;color:#065f46">${d.sug_gear}</span></div>`;
     // Tire dimensions
     if(d.zmig_kidmi)h+=`<div class="f"><span class="fl">🛞 צמיג קדמי:</span><span style="direction:ltr">${d.zmig_kidmi}</span></div>`;
     if(d.zmig_ahori && d.zmig_ahori !== d.zmig_kidmi)h+=`<div class="f"><span class="fl">🛞 צמיג אחורי:</span><span style="direction:ltr">${d.zmig_ahori}</span></div>`;
