@@ -51,7 +51,7 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
 .sq{background:var(--yel-l);border:2px solid var(--yel);border-radius:10px;padding:18px;font-weight:600;font-size:1.05rem;text-align:center;margin:16px 0}
 .sb{display:flex;gap:16px;margin-top:12px}
 .sb>div{flex:1}
-.sby,.sbn{width:100%;padding:12px;border:2px solid var(--g200);border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;transition:.2s;background:#fff}
+.sby,.sbn{width:100%;padding:14px 12px;border:2px solid var(--g200);border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:.2s;background:#fff;text-align:center;line-height:1.4}
 .sby{color:var(--grn);border-color:var(--grn-l)}.sby:hover{background:var(--grn);color:#fff}
 .sbn{color:var(--red);border-color:var(--red-l)}.sbn:hover{background:var(--red);color:#fff}
 .dc{border-radius:var(--r);padding:24px;margin-top:16px}
@@ -74,7 +74,7 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
 .spin{display:inline-block;width:32px;height:32px;border:3px solid var(--g200);border-top-color:var(--pri);border-radius:50%;animation:sp .8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 .crumb{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.cb{padding:4px 10px;background:var(--g100);border-radius:6px;font-size:.8rem;display:flex;align-items:center;gap:4px}
+.cb{padding:4px 10px;background:var(--g100);border-radius:6px;font-size:.8rem;display:flex;align-items:center;gap:4px;cursor:pointer;transition:.2s}.cb:hover{background:var(--g200)}
 .cb .a{font-weight:700}.cb .a.y{color:var(--grn)}.cb .a.n{color:var(--red)}
 .cr{display:flex;align-items:center;gap:8px;margin-top:4px}
 .crb{flex:1;height:8px;background:var(--g200);border-radius:4px;overflow:hidden}
@@ -121,13 +121,22 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
 
   <!-- Step 2 -->
   <div id="step-2" class="card hid">
-    <div class="ct">שלב 2 — מה קורה עם הרכב?</div>
+    <div class="ct"><div>שלב 2 — מה קורה עם הרכב?</div><div id="step2-sub" style="font-size:.85rem;color:var(--g500);margin-top:4px">2א: בחר מערכת</div></div>
     <div id="v-sum"></div>
-    <div><label>תאר במילים שלך מה הבעיה</label>
-      <div class="acw"><input type="text" id="iss-q" placeholder="לדוגמה: הרכב לא מניע, יש רעש מוזר, המנוע מתחמם..." oninput="onSearch()" onfocus="onSearch()"><div class="acl hid" id="ac-list"></div></div>
+    <div id="step2a-content">
+      <div><label>תאר במילים שלך מה הבעיה</label>
+        <div class="acw"><input type="text" id="iss-q" placeholder="לדוגמה: הרכב לא מניע, יש רעש מוזר, המנוע מתחמם..." oninput="onSearch()" onfocus="onSearch()"><div class="acl hid" id="ac-list"></div></div>
+      </div>
+      <div style="margin-top:16px"><div class="ct" style="font-size:1rem">או בחר לפי מערכת:</div><div class="sg" id="sys-grid"></div></div>
     </div>
-    <div style="margin-top:16px"><div class="ct" style="font-size:1rem">או בחר לפי מערכת:</div><div class="sg" id="sys-grid"></div></div>
-    <div id="iss-sec" class="hid" style="margin-top:16px"><div class="ct" style="font-size:1rem" id="iss-t">מה אתה מרגיש/שומע/רואה?</div><div class="il" id="iss-list"></div></div>
+    <div id="step2b-content" class="hid">
+      <div style="background:var(--g50);padding:12px 14px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+        <div><strong id="step2b-sys-name"></strong></div>
+        <button class="btn btn-s" style="padding:4px 12px;font-size:.85rem" onclick="resetStep2()">שנה מערכת</button>
+      </div>
+      <div class="ct" style="font-size:1rem;margin-bottom:12px">בחר תסמין:</div>
+      <div class="il" id="iss-list"></div>
+    </div>
     <div class="btns"><button class="btn btn-s" onclick="goStep(1)">חזרה</button><button class="btn btn-p" onclick="goStep3()" id="btn2" disabled>התחל אבחון</button></div>
   </div>
 
@@ -429,6 +438,11 @@ function goStep2(){
     if(parts.length)extraInfo=`<div style="font-size:.82rem;color:#475569;margin-top:4px">${parts.join(' | ')}</div>`;
   }
   $('v-sum').innerHTML=`<div class="alert alert-i"><strong>${v.make} ${v.model} ${v.year}</strong>${v.plate?' | '+v.plate.tozeret_nm+' '+v.plate.kinuy_mishari:''}<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${badges}</div>${extraInfo}</div>`;
+  // Reset to step 2a (system selection)
+  $('step2a-content').classList.remove('hid');
+  $('step2b-content').classList.add('hid');
+  $('step2-sub').textContent='2א: בחר מערכת';
+  S.selSys=null;S.selIssue=null;S.selIdx=null;
   renderSystems();
 }
 function renderSystems(){
@@ -445,8 +459,8 @@ function renderSystems(){
 function selSys(k){
   S.selSys=k;S.selIssue=null;S.selIdx=null;renderSystems();
   const syms=SYMPTOMS[k]||[];
-  if(!syms.length){$('iss-sec').classList.add('hid');chk2();return;}
-  $('iss-t').textContent='מה קורה? — '+SYS_INFO[k].he+':';
+  if(!syms.length){chk2();return;}
+  $('step2b-sys-name').textContent=SYS_INFO[k].he;
   const l=$('iss-list');l.innerHTML='';
   // Show known issues from DB first
   const knownIssues = S.vehicle ? getKnownIssues(S.vehicle, k) : [];
@@ -457,12 +471,14 @@ function selSys(k){
     l.appendChild(hdr);
     knownIssues.forEach((issue,i)=>{
       const d=document.createElement('div');d.className='ii';
+      d.setAttribute('data-sel-id','known_'+i);
       d.style.borderColor='var(--yel)';d.style.background='#fffbeb';
       d.innerHTML=`<div class="in" style="background:var(--yel);color:#fff">★</div><div><div style="font-weight:600">${issue}</div><div style="font-size:.8rem;color:var(--g500)">בעיה ידועה לדגם זה</div></div>`;
       d.onclick=()=>{
         // Create a synthetic symptom for this known issue
         const synSym={id:'known_'+k+'_'+i, text:issue, isKnown:true};
-        selIss(k,synSym,syms.length+i);
+        selIss(k,synSym,'known_'+i);
+        showStep2b();
       };
       l.appendChild(d);
     });
@@ -474,25 +490,76 @@ function selSys(k){
   // Then show generic symptoms
   syms.forEach((sym,i)=>{
     const d=document.createElement('div');d.className='ii';
+    d.setAttribute('data-sel-id','sym_'+i);
     d.innerHTML=`<div class="in">${i+1}</div><div>${sym.text}</div>`;
-    d.onclick=()=>selIss(k,sym,i);l.appendChild(d);
+    d.onclick=()=>{selIss(k,sym,'sym_'+i);showStep2b();};l.appendChild(d);
   });
-  $('iss-sec').classList.remove('hid');chk2();
+  showStep2b();chk2();
 }
-function selIss(sys,sym,idx){
-  S.selSys=sys;S.selIssue=sym;S.selIdx=idx;
-  document.querySelectorAll('.ii').forEach((el,i)=>el.classList.toggle('sel',i===idx));chk2();
+function showStep2b(){
+  $('step2a-content').classList.add('hid');
+  $('step2b-content').classList.remove('hid');
+  $('step2-sub').textContent='2ב: בחר תסמין';
+}
+function resetStep2(){
+  S.selSys=null;S.selIssue=null;S.selIdx=null;
+  $('step2a-content').classList.remove('hid');
+  $('step2b-content').classList.add('hid');
+  $('step2-sub').textContent='2א: בחר מערכת';
+  $('iss-q').value='';
+  renderSystems();
+  chk2();
+}
+function selIss(sys,sym,selId){
+  S.selSys=sys;S.selIssue=sym;S.selIdx=selId;
+  document.querySelectorAll('.ii').forEach((el)=>el.classList.toggle('sel',el.getAttribute('data-sel-id')===selId));chk2();
 }
 function onSearch(){
   const q=$('iss-q').value.trim(),el=$('ac-list');
   if(!q){el.classList.add('hid');return;}
+
+  // Split query into words for word-based matching
+  const qWords = q.split(/\s+/).filter(w=>w.length>0);
   const items=[];
-  SYS_ORDER.forEach(k=>{(SYMPTOMS[k]||[]).forEach((sym,i)=>{if(sym.text.includes(q))items.push({sys:k,sym,idx:i});});});
+
+  // Search symptoms
+  SYS_ORDER.forEach(k=>{
+    (SYMPTOMS[k]||[]).forEach((sym,i)=>{
+      // Count how many query words appear in this symptom
+      const matchCount = qWords.filter(w=>sym.text.includes(w)).length;
+      if(matchCount > 0) {
+        items.push({sys:k,sym,idx:i,matchCount,type:'symptom'});
+      }
+    });
+  });
+
+  // Search known issues across ALL systems
+  if(S.vehicle) {
+    SYS_ORDER.forEach(k=>{
+      const knownIssues = getKnownIssues(S.vehicle, k);
+      knownIssues.forEach((issue,i)=>{
+        const matchCount = qWords.filter(w=>issue.includes(w)).length;
+        if(matchCount > 0) {
+          items.push({sys:k, sym:{id:'known_'+k+'_'+i, text:issue, isKnown:true}, idx:'known_'+i, matchCount, type:'known'});
+        }
+      });
+    });
+  }
+
+  // Sort by relevance (more words matched = higher)
+  items.sort((a,b)=>b.matchCount-a.matchCount);
+
   if(!items.length){el.classList.add('hid');return;}
   el.innerHTML='';items.slice(0,10).forEach(it=>{
     const d=document.createElement('div');d.className='aci';
-    d.innerHTML=`<span class="sb2">${SYS_INFO[it.sys].ic} ${SYS_INFO[it.sys].he}</span>${it.sym.text}`;
-    d.onclick=()=>{selIss(it.sys,it.sym,it.idx);selSys(it.sys);$('iss-q').value=it.sym.text;el.classList.add('hid');};
+    const icon = it.type==='known' ? '⚠️' : SYS_INFO[it.sys].ic;
+    d.innerHTML=`<span class="sb2">${icon} ${SYS_INFO[it.sys].he}</span>${it.sym.text}`;
+    d.onclick=()=>{
+      const savedSym=it.sym, savedIdx=it.type==='symptom'?'sym_'+it.idx:it.idx;
+      selSys(it.sys);
+      selIss(it.sys,savedSym,savedIdx);
+      $('iss-q').value=savedSym.text;el.classList.add('hid');
+    };
     el.appendChild(d);
   });el.classList.remove('hid');
 }
@@ -514,15 +581,55 @@ function goStep3(){
   }
   renderSop();
 }
+function generateSopLabels(question){
+  const q = question.replace(/\?$/,'').trim();
+  // Only generate descriptive labels for "האם" questions (binary yes/no)
+  if(!q.startsWith('האם ')) return {yes:'כן', no:'לא'};
+  // Remove "האם " prefix
+  let text = q.slice(4).trim();
+  // Truncate if too long
+  if(text.length > 40) text = text.slice(0,40)+'...';
+  // Create affirmative label
+  const yesLabel = 'כן — '+text;
+  // Smart Hebrew negation
+  let noText;
+  if(text.startsWith('יש ')) noText = 'אין '+text.slice(3);
+  else if(text.startsWith('נשמע ')) noText = 'לא נשמע '+text.slice(5);
+  else if(text.startsWith('הבעיה ')) noText = 'הבעיה לא '+text.slice(6);
+  else if(text.startsWith('זה ')) noText = 'זה לא '+text.slice(3);
+  else if(text.startsWith('הרעש ')) noText = 'הרעש לא '+text.slice(5);
+  else if(text.startsWith('הרכב ')) noText = 'הרכב לא '+text.slice(5);
+  else if(text.startsWith('המנוע ')) noText = 'המנוע לא '+text.slice(6);
+  else if(text.startsWith('הרעידות ')) noText = 'הרעידות לא '+text.slice(8);
+  else if(text.startsWith('העשן ')) noText = 'העשן לא '+text.slice(5);
+  else if(text.startsWith('ההתחממות ')) noText = 'ההתחממות לא '+text.slice(9);
+  else noText = 'לא — '+text;
+  return {yes:yesLabel, no:noText};
+}
 function renderSop(){
   const c=$('sop-tree'),n=S.sopCur,h=$('sop-hist');
-  h.innerHTML=S.sopPath.map(p=>`<div class="cb">${p.q.slice(0,30)}... <span class="a ${p.a}">${p.a==='yes'?'כן':'לא'}</span></div>`).join('');
+  h.innerHTML=S.sopPath.map((p,idx)=>`<div class="cb" onclick="rewindSop(${idx})">${p.q.slice(0,30)}... <span class="a ${p.a}">${p.a==='yes'?'כן':'לא'}</span></div>`).join('');
   if(!n){c.innerHTML='';return;}
   if(n.diagnosis){S.diag=n;goStep4();return;}
-  c.innerHTML=`<div class="fi"><div class="sq">${n.question}</div><div class="sb"><div><button class="sby" onclick="ansSop('yes')">כן</button></div><div><button class="sbn" onclick="ansSop('no')">לא</button></div></div></div>`;
+  const labels = generateSopLabels(n.question);
+  c.innerHTML=`<div class="fi"><div class="sq">${n.question}</div><div class="sb"><div><button class="sby" onclick="ansSop('yes')" title="${labels.yes}">${labels.yes}</button></div><div><button class="sbn" onclick="ansSop('no')" title="${labels.no}">${labels.no}</button></div></div></div>`;
+}
+function rewindSop(idx){
+  S.sopPath = S.sopPath.slice(0,idx);
+  // Rebuild from correct builder based on issue type
+  if(S.selIssue.isKnown){
+    S.sopCur = buildKnownIssueSop(S.selSys, S.selIssue.text, S.vType);
+  } else {
+    S.sopCur = buildSopTree(S.selSys, S.selIssue.id, S.vType);
+  }
+  // Navigate through the path again
+  S.sopPath.forEach(p=>{
+    S.sopCur = p.a==='yes' ? S.sopCur.yes : S.sopCur.no;
+  });
+  renderSop();
 }
 function ansSop(a){S.sopPath.push({q:S.sopCur.question,a});S.sopCur=a==='yes'?S.sopCur.yes:S.sopCur.no;renderSop();}
-function resetSop(){S.sopPath=[];S.sopCur=buildSopTree(S.selSys,S.selIssue);renderSop();}
+function resetSop(){S.sopPath=[];if(S.selIssue.isKnown){S.sopCur=buildKnownIssueSop(S.selSys,S.selIssue.text,S.vType);}else{S.sopCur=buildSopTree(S.selSys,S.selIssue.id,S.vType);}renderSop();}
 
 // ── Step 4 ─────────────────────────────────────────────────────────────────
 function goStep4(){
@@ -540,21 +647,21 @@ function goStep4(){
 function goStep5(){
   goStep(5);const d=S.diag,s=S.sop,u=d.urgency||'medium';
   let h='<div class="fi">';
-  h+=`<div class="ds"><h4>אבחנה</h4><p style="font-size:1.15rem;font-weight:700;color:var(--g800)">${d.diagnosis}</p></div>`;
-  h+=`<div class="ds"><h4>דחיפות</h4><span class="ub ${u}">${URG_HE[u]}</span></div>`;
-  h+=`<div class="ds"><h4>הסבר</h4><p style="font-size:1rem">${d.solution}</p></div>`;
+  h+=`<div class="ds"><h4>אבחנה מקצועית</h4><p style="font-size:1.15rem;font-weight:700;color:var(--g800)">${d.diagnosis}</p></div>`;
+  h+=`<div class="ds"><h4>דרגת דחיפות</h4><span class="ub ${u}">${URG_HE[u]}</span></div>`;
+  h+=`<div class="ds"><h4>תיאור התקלה מקצועי</h4><p style="font-size:1rem">${d.solution}</p></div>`;
   // Repair steps
   if(d.repairSteps&&d.repairSteps.length){
-    h+='<div class="ds"><h4>שלבי טיפול</h4><div style="background:var(--g50);border-radius:8px;padding:16px;margin-top:6px">';
+    h+='<div class="ds"><h4>הוראות טיפול למוסכניק</h4><div style="background:var(--g50);border-radius:8px;padding:16px;margin-top:6px">';
     d.repairSteps.forEach((step,i)=>{
       h+=`<div style="padding:8px 0;${i<d.repairSteps.length-1?'border-bottom:1px solid var(--g200)':''}"><span style="font-weight:700;color:var(--pri)">${step}</span></div>`;
     });
     h+='</div></div>';
   }
-  if(d.parts&&d.parts.length){h+='<div class="ds"><h4>חלקים נדרשים</h4><div class="pl">';d.parts.forEach(p=>{h+=`<span class="pt">${p}</span>`;});h+='</div></div>';}
+  if(d.parts&&d.parts.length){h+='<div class="ds"><h4>חלקים להזמנה</h4><div class="pl">';d.parts.forEach(p=>{h+=`<span class="pt">${p}</span>`;});h+='</div></div>';}
   // YouTube tutorial videos
   const ytQuery = buildYouTubeQuery(S.selSys, d, S.vehicle);
-  h+=`<div class="ds"><h4>🎬 סרטוני הדרכה</h4><p style="font-size:.85rem;color:var(--g500);margin-bottom:10px">סרטונים באנגלית עם הדרכות תיקון מפורטות</p>`;
+  h+=`<div class="ds"><h4>🎬 סרטוני הדרכה מקצועיים</h4><p style="font-size:.85rem;color:var(--g500);margin-bottom:10px">סרטוני תיקון מקצועיים עם הנחיות מפורטות</p>`;
   h+=`<div style="display:flex;flex-direction:column;gap:8px">`;
   ytQuery.forEach(q=>{
     const url='https://www.youtube.com/results?search_query='+encodeURIComponent(q.query);
@@ -569,7 +676,7 @@ function goStep5(){
   h+=`<tr><td class="lbl">תסמין:</td><td>${s.issue}</td></tr>`;
   h+=`<tr><td class="lbl">מערכת:</td><td>${s.system}</td></tr>`;
   h+=`<tr><td class="lbl">אבחנה:</td><td>${d.diagnosis}</td></tr>`;
-  h+=`<tr><td class="lbl">פתרון:</td><td>${d.solution}</td></tr>`;
+  h+=`<tr><td class="lbl">תיאור קצר:</td><td>${d.solution}</td></tr>`;
   if(d.parts&&d.parts.length)h+=`<tr><td class="lbl">חלקים:</td><td>${d.parts.join(', ')}</td></tr>`;
   h+='</table></div></div>';
   $('sol-det').innerHTML=h;
@@ -682,23 +789,23 @@ function buildYouTubeQuery(sys, diag, vehicle) {
     'משאבת הגה כוח':'power steering pump','טירוזול':'tie rod end'
   };
   const queries = [];
-  // Main repair tutorial query
+  // Main repair tutorial query - mechanic-oriented
   queries.push({
-    label: '🔧 איך לתקן — הדרכה מלאה',
-    query: `how to fix ${diagEN} ${vStr} ${vYear} tutorial`.trim()
+    label: '🔧 הנחיית תיקון מקצועית',
+    query: `how to fix ${diagEN} ${vStr} ${vYear} mechanic repair tutorial`.trim()
   });
-  // Vehicle-specific diagnosis query
+  // Vehicle-specific diagnosis query - mechanic-oriented
   queries.push({
-    label: '🔍 אבחון תקלה — ' + vStr,
-    query: `${vStr} ${vYear} ${diagEN} diagnosis`.trim()
+    label: '🔍 אבחון וטיפול מקצועי',
+    query: `${vStr} ${vYear} ${diagEN} mechanic diagnosis repair`.trim()
   });
-  // Parts replacement query (use first part)
+  // Parts replacement query (use first part) - mechanic-oriented
   if(diag.parts && diag.parts.length) {
     const mainPart = diag.parts[0];
     const partEN = PARTS_EN[mainPart] || mainPart;
     queries.push({
-      label: '🛠️ החלפת ' + mainPart,
-      query: `how to replace ${partEN} ${vStr} ${vYear}`.trim()
+      label: '🛠️ הוראות החלפה: ' + mainPart,
+      query: `how to replace ${partEN} ${vStr} ${vYear} mechanic`.trim()
     });
   }
   return queries;
