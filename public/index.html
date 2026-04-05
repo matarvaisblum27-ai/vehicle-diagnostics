@@ -146,14 +146,14 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
     <div id="sop-info"></div>
     <div class="crumb" id="sop-hist"></div>
     <div id="sop-tree"></div>
-    <div class="btns"><button class="btn btn-s" onclick="goStep(2)">חזרה</button><button class="btn btn-s" onclick="resetSop()">התחל SOP מחדש</button></div>
+    <div class="btns"><button class="btn btn-s" onclick="goStep(2)">חזרה</button><button class="btn btn-s" id="btn-sop-prev" onclick="sopPrev()" style="display:none">⬅ שאלה קודמת</button><button class="btn btn-s" onclick="resetSop()">התחל SOP מחדש</button></div>
   </div>
 
   <!-- Step 4 -->
   <div id="step-4" class="card hid">
     <div class="ct">שלב 4 — תוצאות אבחון</div>
     <div id="diag-res"></div>
-    <div class="btns"><button class="btn btn-s" onclick="goStep(3)">חזרה ל-SOP</button><button class="btn btn-p" onclick="goStep5()">צפה בפתרון מלא</button></div>
+    <div class="btns"><button class="btn btn-s" onclick="backToSop()">חזרה ל-SOP</button><button class="btn btn-p" onclick="goStep5()">צפה בפתרון מלא</button></div>
   </div>
 
   <!-- Step 5 -->
@@ -608,11 +608,19 @@ function generateSopLabels(question){
 }
 function renderSop(){
   const c=$('sop-tree'),n=S.sopCur,h=$('sop-hist');
-  h.innerHTML=S.sopPath.map((p,idx)=>`<div class="cb" onclick="rewindSop(${idx})">${p.q.slice(0,30)}... <span class="a ${p.a}">${p.a==='yes'?'כן':'לא'}</span></div>`).join('');
+  // Show/hide previous question button
+  const prevBtn=$('btn-sop-prev');
+  if(prevBtn) prevBtn.style.display=S.sopPath.length>0?'inline-block':'none';
+  // Render breadcrumbs — clickable to rewind
+  h.innerHTML=S.sopPath.map((p,idx)=>`<div class="cb" onclick="rewindSop(${idx})" title="לחץ לשנות תשובה">${p.q.slice(0,30)}... <span class="a ${p.a}">${p.a==='yes'?'כן':'לא'}</span></div>`).join('');
   if(!n){c.innerHTML='';return;}
   if(n.diagnosis){S.diag=n;goStep4();return;}
   const labels = generateSopLabels(n.question);
   c.innerHTML=`<div class="fi"><div class="sq">${n.question}</div><div class="sb"><div><button class="sby" onclick="ansSop('yes')" title="${labels.yes}">${labels.yes}</button></div><div><button class="sbn" onclick="ansSop('no')" title="${labels.no}">${labels.no}</button></div></div></div>`;
+}
+function sopPrev(){
+  if(S.sopPath.length===0)return;
+  rewindSop(S.sopPath.length-1);
 }
 function rewindSop(idx){
   S.sopPath = S.sopPath.slice(0,idx);
@@ -629,6 +637,22 @@ function rewindSop(idx){
   renderSop();
 }
 function ansSop(a){S.sopPath.push({q:S.sopCur.question,a});S.sopCur=a==='yes'?S.sopCur.yes:S.sopCur.no;renderSop();}
+function backToSop(){
+  // Rewind the last answer so we're back at the last question (not stuck at diagnosis)
+  if(S.sopPath.length>0){
+    S.sopPath = S.sopPath.slice(0, S.sopPath.length-1);
+    if(S.selIssue.isKnown){
+      S.sopCur = buildKnownIssueSop(S.selSys, S.selIssue.text, S.vType);
+    } else {
+      S.sopCur = buildSopTree(S.selSys, S.selIssue.id, S.vType);
+    }
+    S.sopPath.forEach(p=>{
+      S.sopCur = p.a==='yes' ? S.sopCur.yes : S.sopCur.no;
+    });
+  }
+  goStep(3);
+  renderSop();
+}
 function resetSop(){S.sopPath=[];if(S.selIssue.isKnown){S.sopCur=buildKnownIssueSop(S.selSys,S.selIssue.text,S.vType);}else{S.sopCur=buildSopTree(S.selSys,S.selIssue.id,S.vType);}renderSop();}
 
 // ── Step 4 ─────────────────────────────────────────────────────────────────
