@@ -138,27 +138,22 @@ module.exports = async function handler(req, res) {
     }
     let enModel = HE_TO_EN_MODEL[heModel] || '';
 
-    return res.status(200).json({
+    // Build response — pass through ALL fields from government record
+    const result = {
       plate: plateClean,
       tozeret_nm: heMake,
       kinuy_mishari: heModel,
       shnat_yitzur: year,
-      degem_nm: rec.degem_nm || '',
-      degem_cd: rec.degem_cd || '',
-      ramat_gimur: rec.ramat_gimur || '',
-      sug_delek_nm: rec.sug_delek_nm || '',
-      tzeva_rechev: rec.tzeva_rechev || '',
-      tokef_dt: rec.tokef_dt || '',
-      baalut: rec.baalut || '',
-      mivchan_acharon_dt: rec.mivchan_acharon_dt || '',
-      moed_aliya_lakvish: rec.moed_aliya_lakvish || '',
-      kvutzat_zihum: rec.kvutzat_zihum || '',
-      sug_degem_nm: rec.sug_degem_nm || '',
-      tozeret_cd: rec.tozeret_cd || '',
-      horaat_rishum: rec.horaat_rishum || '',
       en_make: enMake,
       en_model: enModel,
-    });
+    };
+    // Add all other fields from the record
+    const knownFields = ['mispar_rechev', 'tozeret_nm', 'kinuy_mishari', 'shnat_yitzur'];
+    for (const [k, v] of Object.entries(rec)) {
+      if (k === '_id' || k === 'rank' || knownFields.includes(k)) continue;
+      if (v !== null && v !== undefined && v !== '') result[k] = v;
+    }
+    return res.status(200).json(result);
 
   } catch (err) {
     console.error('[data.gov.il] Error:', err.message);
