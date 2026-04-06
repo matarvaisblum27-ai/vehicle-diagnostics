@@ -1462,30 +1462,72 @@ async function dtcLookup(){
   }
 }
 function displayDtcResult(data,container){
-  let html='';
   const urg=data.urgency||'medium';
-  html+='<div class="dtc-result '+urg+'">';
-  html+='<div class="dtc-code">'+data.code+'</div>';
-  html+='<div class="dtc-he">'+data.he+'</div>';
-  html+='<div style="color:#9ca3af;font-size:.85rem;margin-bottom:8px">'+data.en+'</div>';
-  html+='<div class="dtc-sys">';
   const sysIcon={'fuel':'⛽','engine':'🔧','cooling':'❄️','transmission':'⚙️','exhaust':'💨','brakes':'🛑','electronics':'📟','body':'📦','network':'📡'};
-  html+='<span class="dtc-badge '+data.system+'">'+(sysIcon[data.system]||'•')+' '+data.system+'</span>';
+  const SYS_HE={fuel:'מערכת דלק',engine:'מנוע',cooling:'קירור',transmission:'תיבת הילוכים',exhaust:'פליטה',brakes:'בלמים',electronics:'אלקטרוניקה',body:'מרכב',network:'תקשורת'};
+  // Determine code type (generic vs manufacturer specific) by 2nd char
+  const c=data.code||'';
+  const second=c.charAt(1);
+  const isManuf=(second==='1'||second==='3');
+  const typeNote=isManuf?'קוד יצרן ספציפי — עיין במדריך הטכני של הרכב':'קוד גנרי — רלוונטי לרוב הרכבים';
+  // Vehicle context for searches
+  const v=(typeof S!=='undefined'&&S.vehicle)?S.vehicle:null;
+  const vCtx=v?(v.make+' '+v.model+' '+v.year):'';
+  const ytQ=encodeURIComponent(c+' '+vCtx+' תיקון');
+  const ggQ=encodeURIComponent(c+' '+vCtx+' fix repair');
+  let html='<div class="dtc-result '+urg+'">';
+  // Header: code + title
+  html+='<div style="border-bottom:1px solid #4b5563;padding-bottom:10px;margin-bottom:12px">';
+  html+='<div class="dtc-code">'+c+'</div>';
+  html+='<div class="dtc-he">'+(data.he||'')+'</div>';
+  html+='<div class="dtc-sys" style="margin-top:8px">';
+  html+='<span class="dtc-badge '+data.system+'">'+(sysIcon[data.system]||'•')+' '+(SYS_HE[data.system]||data.system)+'</span>';
   html+='<span class="ub '+urg+'">'+URG_HE[urg]+'</span>';
   html+='</div>';
+  html+='</div>';
+  // Explanation
   if(data.mechanic){
-    html+='<div class="dtc-mech"><strong>הסבר למוסכניק:</strong>'+data.mechanic+'</div>';
-  }
-  if(data.fix&&data.fix.length){
-    html+='<div class="dtc-fix"><div class="dtc-fix-title">📋 שלבי טיפול:</div><ol class="dtc-fix">';
-    data.fix.forEach(f=>{html+='<li>'+f+'</li>';});
-    html+='</ol></div>';
-  }
-  if(data.parts&&data.parts.length){
-    html+='<div class="dtc-parts"><strong style="color:#fbbf24;font-size:.9rem;display:block;margin-bottom:6px">חלקים:</strong>';
-    data.parts.forEach(p=>{html+='<span class="dtc-part">'+p+'</span>';});
+    html+='<div style="margin-bottom:14px">';
+    html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">📖 הסבר התקלה:</div>';
+    html+='<div style="background:#2d3748;padding:12px;border-radius:6px;font-size:.95rem;line-height:1.65;color:#e5e7eb">'+data.mechanic+'</div>';
     html+='</div>';
   }
+  // Possible causes (derived from fix steps if no separate causes)
+  if(data.causes&&data.causes.length){
+    html+='<div style="margin-bottom:14px">';
+    html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">⚠️ סיבות אפשריות:</div>';
+    html+='<ol style="padding-right:22px;margin:0;color:#d1d5db;line-height:1.7">';
+    data.causes.forEach(x=>{html+='<li style="margin-bottom:4px">'+x+'</li>';});
+    html+='</ol></div>';
+  }
+  // Diagnostic / repair steps
+  if(data.fix&&data.fix.length){
+    html+='<div style="margin-bottom:14px">';
+    html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">🔍 שלבי אבחון וטיפול:</div>';
+    html+='<ol style="padding-right:22px;margin:0;color:#d1d5db;line-height:1.7">';
+    data.fix.forEach(f=>{html+='<li style="margin-bottom:5px">'+f+'</li>';});
+    html+='</ol></div>';
+  }
+  // Parts
+  if(data.parts&&data.parts.length){
+    html+='<div style="margin-bottom:14px">';
+    html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">🧰 חלקים נפוצים:</div>';
+    html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
+    data.parts.forEach(p=>{html+='<span class="dtc-part">'+p+'</span>';});
+    html+='</div></div>';
+  }
+  // Solution links — תיקון בעזרת חיפושים חיצוניים
+  html+='<div style="background:#1f2937;border:1px solid #4b5563;border-radius:8px;padding:12px;margin-top:14px">';
+  html+='<div style="color:#fbbf24;font-weight:700;font-size:.9rem;margin-bottom:8px">🔗 קישורים לפתרון התקלה</div>';
+  html+='<div style="display:flex;flex-direction:column;gap:6px">';
+  html+='<a href="https://www.youtube.com/results?search_query='+ytQ+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#374151;border-radius:6px;color:#fff;text-decoration:none;font-size:.88rem;transition:.2s" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span>▶️</span><span>סרטוני הדרכה ביוטיוב לקוד '+c+(vCtx?' ('+vCtx+')':'')+'</span></a>';
+  html+='<a href="https://www.google.com/search?q='+ggQ+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#374151;border-radius:6px;color:#fff;text-decoration:none;font-size:.88rem;transition:.2s" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span>🔎</span><span>חיפוש Google לפתרונות הקוד</span></a>';
+  html+='<a href="https://www.autocodes.com/'+encodeURIComponent(c.toLowerCase())+'.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#374151;border-radius:6px;color:#fff;text-decoration:none;font-size:.88rem;transition:.2s" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span>📘</span><span>AutoCodes — מדריך טכני (אנגלית)</span></a>';
+  html+='</div></div>';
+  // Code type note
+  html+='<div style="margin-top:12px;padding:8px 12px;background:#0f172a;border-right:3px solid #6b7280;border-radius:4px;font-size:.82rem;color:#9ca3af">';
+  html+='<strong style="color:#cbd5e1">סוג קוד:</strong> '+typeNote;
+  html+='</div>';
   html+='</div>';
   container.innerHTML=html;
 }
