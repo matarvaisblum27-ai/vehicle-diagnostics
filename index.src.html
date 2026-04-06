@@ -161,6 +161,25 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
     <div class="ct"><div>שלב 2 — מה קורה עם הרכב?</div><div id="step2-sub" style="font-size:.85rem;color:var(--g500);margin-top:4px">2א: בחר מערכת</div></div>
     <div id="v-sum"></div>
     <div id="step2a-content">
+      <!-- Quick DTC entry: skip directly to step 5 -->
+      <div style="background:linear-gradient(135deg,#1f2937,#111827);border:2px solid #374151;border-radius:12px;padding:16px;margin-bottom:18px;color:#fff">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:700;font-size:1.05rem;margin-bottom:2px">🔧 יש לך קודי תקלה (DTC)?</div>
+            <div style="font-size:.85rem;color:#cbd5e1">הזן קוד אחד או יותר ודלג ישר לפתרון</div>
+          </div>
+          <button type="button" class="btn btn-s" style="background:#374151;color:#fff;border-color:#4b5563" onclick="toggleDtcQuick()">פתח/סגור</button>
+        </div>
+        <div id="dtc-quick-box" class="hid" style="margin-top:14px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">
+            <input type="text" id="dtc-quick-input" placeholder="P0300, P0171, U0100" style="flex:1;min-width:200px;padding:12px 14px;border:1.5px solid #4b5563;border-radius:8px;font-size:1rem;font-family:monospace;font-weight:600;text-transform:uppercase;background:#2d3748;color:#fff;direction:ltr;letter-spacing:1.5px">
+            <button class="dtc-btn" onclick="dtcQuickDiag()">אבחון לפי קודים ←</button>
+          </div>
+          <div style="font-size:.78rem;color:#9ca3af;margin-top:8px">הפרד מספר קודים בפסיק או רווח</div>
+          <div id="dtc-quick-err" style="display:none;background:#7f1d1d;border:1px solid var(--red);color:#fecaca;padding:10px;border-radius:6px;margin-top:10px;font-size:.88rem"></div>
+        </div>
+      </div>
+      <div style="text-align:center;color:var(--g500);font-size:.85rem;margin-bottom:12px">— או המשך באבחון רגיל —</div>
       <div><label>תאר במילים שלך מה הבעיה</label>
         <div class="acw"><input type="text" id="iss-q" placeholder="לדוגמה: הרכב לא מניע, יש רעש מוזר, המנוע מתחמם..." oninput="onSearch()" onfocus="onSearch()"><div class="acl hid" id="ac-list"></div></div>
       </div>
@@ -1372,6 +1391,54 @@ function buildSopTree(sys, symptomId, vType) {
   return SOP[symptomId] || {question:'האם הבעיה קבועה (כל הזמן)?',
     yes:{diagnosis:'תקלה קבועה — פנה למוסך',urgency:'high',solution:'בעיה שלא נעלמת דורשת בדיקה מקצועית.',parts:[],repairSteps:['1. תעד מה הבעיה','2. צלם/הקלט אם אפשר','3. פנה למוסך','4. שתף את האבחון']},
     no:{diagnosis:'תקלה לסירוגין — תעד ועקוב',urgency:'medium',solution:'תעד מתי זה קורה (חם/קר, נסיעה/עצירה). תעזור למכונאי.',parts:[],repairSteps:['1. רשום מתי קורה','2. רשום באיזה תנאים','3. צלם אם אפשר','4. פנה למוסך עם המידע']}};
+}
+
+// ── DTC Quick Diagnosis (skip steps 2-4) ────────────────────────────────────
+function toggleDtcQuick(){
+  const b=$('dtc-quick-box'); if(b) b.classList.toggle('hid');
+}
+async function dtcQuickDiag(){
+  if(!S.vehicle){ const e=$('dtc-quick-err'); if(e){e.style.display='block';e.textContent='קודם בחר רכב בשלב 1';} return; }
+  const raw=($('dtc-quick-input').value||'').toUpperCase();
+  const codes=raw.split(/[\s,;]+/).map(c=>c.trim()).filter(Boolean);
+  const errBox=$('dtc-quick-err');
+  if(!codes.length){ errBox.style.display='block'; errBox.textContent='הזן לפחות קוד תקלה אחד'; return; }
+  const valid=/^[PBCU][0-9A-F]{4}$/;
+  const bad=codes.filter(c=>!valid.test(c));
+  if(bad.length){ errBox.style.display='block'; errBox.textContent='קודים לא תקינים: '+bad.join(', '); return; }
+  errBox.style.display='none';
+  // Fetch all codes in parallel
+  const results=[];
+  await Promise.all(codes.map(async c=>{
+    try{
+      const r=await fetch('/api/dtc-lookup?code='+encodeURIComponent(c));
+      const d=await r.json();
+      if(d&&d.code) results.push(d);
+      else results.push({code:c,he:'קוד לא נמצא',system:'engine',urgency:'medium',mechanic:d.error||'אין מידע זמין',fix:[]});
+    }catch(e){
+      results.push({code:c,he:'שגיאת רשת',system:'engine',urgency:'medium',mechanic:e.message,fix:[]});
+    }
+  }));
+  // Sort by urgency: critical > high > medium > low
+  const ord={critical:0,high:1,medium:2,low:3};
+  results.sort((a,b)=>(ord[a.urgency]||2)-(ord[b.urgency]||2));
+  // Build a synthetic step-5 view focused on DTC
+  S.dtcMode=true;
+  goStep(5);
+  const v=S.vehicle;
+  const topUrg=results[0]?results[0].urgency:'medium';
+  let h='<div class="fi">';
+  h+='<div class="ds"><h4>אבחון לפי קודי תקלה</h4><p style="font-size:1.1rem;font-weight:700;color:var(--g800)">נסרקו '+results.length+' קודי תקלה עבור '+v.make+' '+v.model+' '+v.year+'</p></div>';
+  h+='<div class="ds"><h4>דרגת דחיפות מקסימלית</h4><span class="ub '+topUrg+'">'+URG_HE[topUrg]+'</span></div>';
+  h+='<div class="dtc-sec"><div class="ct">🔍 פירוט הקודים</div><div id="dtc-quick-results"></div></div>';
+  h+='</div>';
+  $('sol-det').innerHTML=h;
+  // Render each result using existing displayDtcResult into individual divs
+  const wrap=$('dtc-quick-results');
+  results.forEach((d,i)=>{
+    const div=document.createElement('div'); div.style.marginBottom='12px';
+    displayDtcResult(d,div); wrap.appendChild(div);
+  });
 }
 
 // ── DTC (Diagnostic Trouble Code) Lookup Functions ──────────────────────────
