@@ -1,16 +1,42 @@
 // Vercel Serverless Function — Proxy for data.gov.il license plate lookup
 // Endpoint: /api/license-plate?plate=1234567
 
+// Simple in-memory rate limiter (per-IP). Resets per serverless instance.
+const RL_WINDOW_MS = 60 * 1000;
+const RL_MAX = 30;
+const rlMap = new Map();
+function checkRate(ip) {
+  const now = Date.now();
+  const arr = (rlMap.get(ip) || []).filter(t => now - t < RL_WINDOW_MS);
+  if (arr.length >= RL_MAX) { rlMap.set(ip, arr); return false; }
+  arr.push(now); rlMap.set(ip, arr);
+  if (rlMap.size > 5000) { for (const k of rlMap.keys()) { rlMap.delete(k); if (rlMap.size < 2500) break; } }
+  return true;
+}
+
 module.exports = async function handler(req, res) {
   // CORS + cache headers (vehicle data is stable — cache aggressively at edge)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  // Rate limiting
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+  if (!checkRate(ip)) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({ error: 'יותר מדי בקשות — נסה שוב בעוד דקה' });
+  }
 
   const { plate } = req.query;
-  if (!plate) {
-    return res.status(400).json({ error: 'חסר מספר רישוי' });
+  if (!plate || typeof plate !== 'string' || plate.length > 12) {
+    return res.status(400).json({ error: 'חסר או לא תקין מספר רישוי' });
+  }
+
+  // Strict validation: only digits and dashes allowed in input
+  if (!/^[0-9\-]+$/.test(plate)) {
+    return res.status(400).json({ error: 'מספר רישוי מכיל תווים לא חוקיים' });
   }
 
   const plateClean = plate.replace(/[^0-9]/g, '');
