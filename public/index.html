@@ -1072,61 +1072,61 @@ container.innerHTML='<div class="dtc-error">שגיאת רשת: '+e.message+'</di
 }
 function displayDtcResult(data,container){
 const urg=data.urgency||'medium';
-const sysIcon={'fuel':'⛽','engine':'🔧','cooling':'❄️','transmission':'⚙️','exhaust':'💨','brakes':'🛑','electronics':'📟','body':'📦','network':'📡'};
+const sysIcon={fuel:'⛽',engine:'🔧',cooling:'❄️',transmission:'⚙️',exhaust:'💨',brakes:'🛑',electronics:'📟',body:'📦',network:'📡'};
 const SYS_HE={fuel:'מערכת דלק',engine:'מנוע',cooling:'קירור',transmission:'תיבת הילוכים',exhaust:'פליטה',brakes:'בלמים',electronics:'אלקטרוניקה',body:'מרכב',network:'תקשורת'};
 const c=data.code||'';
-const second=c.charAt(1);
-const isManuf=(second==='1'||second==='3');
-const typeNote=isManuf?'קוד יצרן ספציפי — עיין במדריך הטכני של הרכב':'קוד גנרי — רלוונטי לרוב הרכבים';
+const isManuf=(c.charAt(1)==='1'||c.charAt(1)==='3');
+const typeNote=isManuf?'קוד יצרן ספציפי — רלוונטי בעיקר ליצרן הרכב הזה. עיין במדריך הטכני של היצרן.':'קוד גנרי (Generic) — רלוונטי לרוב הרכבים והדגמים.';
 const v=(typeof S!=='undefined'&&S.vehicle)?S.vehicle:null;
 const vCtx=v?(v.make+' '+v.model+' '+v.year):'';
 const ytQ=encodeURIComponent(c+' '+vCtx+' תיקון');
 const ggQ=encodeURIComponent(c+' '+vCtx+' fix repair');
-let html='<div class="dtc-result '+urg+'">';
-html+='<div style="border-bottom:1px solid #4b5563;padding-bottom:10px;margin-bottom:12px">';
-html+='<div class="dtc-code">'+c+'</div>';
-html+='<div class="dtc-he">'+(data.he||'')+'</div>';
-html+='<div class="dtc-sys" style="margin-top:8px">';
+const causes=data.causes||[];
+const diagSteps=data.diagnosticSteps||data.fix||[];
+const repairSteps=data.repairSteps||[];
+const explanation=data.explanation||data.mechanic||'';
+const section=(title,bodyHtml)=>'<div style="background:#2d3748;border-radius:8px;padding:14px 16px;margin-bottom:12px"><div style="color:#fbbf24;font-weight:700;font-size:1rem;margin-bottom:10px;border-bottom:1px solid #4b5563;padding-bottom:6px">'+title+'</div>'+bodyHtml+'</div>';
+const numList=arr=>{let h='<ol style="padding-right:24px;margin:0;color:#e5e7eb;line-height:1.85;font-size:.95rem">';arr.forEach(x=>{h+='<li style="margin-bottom:6px">'+x+'</li>';});return h+'</ol>';};
+let html='<div class="dtc-result '+urg+'" style="padding:20px">';
+html+='<div style="text-align:center;background:#1f2937;border:2px solid #374151;border-radius:10px;padding:18px;margin-bottom:16px">';
+html+='<div style="font-family:monospace;font-size:2rem;font-weight:800;color:var(--pri);letter-spacing:3px;direction:ltr">'+c+'</div>';
+html+='<div style="font-size:1.15rem;font-weight:600;color:#fff;margin-top:6px">'+(data.he||'')+'</div>';
+html+='<div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">';
 html+='<span class="dtc-badge '+data.system+'">'+(sysIcon[data.system]||'•')+' '+(SYS_HE[data.system]||data.system)+'</span>';
 html+='<span class="ub '+urg+'">'+URG_HE[urg]+'</span>';
+html+='</div></div>';
+html+='<div style="background:#1f2937;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:.95rem;color:#e5e7eb;line-height:1.8">';
+html+='<div><strong style="color:#fbbf24">קוד:</strong><span style="font-family:monospace;direction:ltr">'+c+'</span></div>';
+html+='<div><strong style="color:#fbbf24">שם התקלה:</strong> '+(data.he||'')+'</div>';
+html+='<div><strong style="color:#fbbf24">מערכת:</strong> '+(SYS_HE[data.system]||data.system)+'</div>';
+html+='<div><strong style="color:#fbbf24">דרגת דחיפות:</strong> '+URG_HE[urg]+'</div>';
 html+='</div>';
-html+='</div>';
-if(data.mechanic){
-html+='<div style="margin-bottom:14px">';
-html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">📖 הסבר התקלה:</div>';
-html+='<div style="background:#2d3748;padding:12px;border-radius:6px;font-size:.95rem;line-height:1.65;color:#e5e7eb">'+data.mechanic+'</div>';
-html+='</div>';
+if(explanation){
+html+=section('📖 הסבר התקלה','<div style="color:#e5e7eb;font-size:.97rem;line-height:1.75">'+explanation+'</div>');
 }
-if(data.causes&&data.causes.length){
-html+='<div style="margin-bottom:14px">';
-html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">⚠️ סיבות אפשריות:</div>';
-html+='<ol style="padding-right:22px;margin:0;color:#d1d5db;line-height:1.7">';
-data.causes.forEach(x=>{html+='<li style="margin-bottom:4px">'+x+'</li>';});
-html+='</ol></div>';
+if(causes.length){
+html+=section('⚠️ סיבות אפשריות',numList(causes));
 }
-if(data.fix&&data.fix.length){
-html+='<div style="margin-bottom:14px">';
-html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">🔍 שלבי אבחון וטיפול:</div>';
-html+='<ol style="padding-right:22px;margin:0;color:#d1d5db;line-height:1.7">';
-data.fix.forEach(f=>{html+='<li style="margin-bottom:5px">'+f+'</li>';});
-html+='</ol></div>';
+if(diagSteps.length){
+html+=section('🔍 שלבי אבחון',numList(diagSteps));
+}
+if(repairSteps.length){
+html+=section('🛠️ שלבי תיקון',numList(repairSteps));
 }
 if(data.parts&&data.parts.length){
-html+='<div style="margin-bottom:14px">';
-html+='<div style="color:#fbbf24;font-weight:700;font-size:.95rem;margin-bottom:6px">🧰 חלקים נפוצים:</div>';
-html+='<div style="display:flex;flex-wrap:wrap;gap:6px">';
-data.parts.forEach(p=>{html+='<span class="dtc-part">'+p+'</span>';});
-html+='</div></div>';
+let pHtml='<div style="display:flex;flex-wrap:wrap;gap:8px">';
+data.parts.forEach(p=>{pHtml+='<span class="dtc-part" style="font-size:.9rem;padding:6px 12px">'+p+'</span>';});
+pHtml+='</div>';
+html+=section('🧰 חלקים שיכולים להידרש',pHtml);
 }
-html+='<div style="background:#1f2937;border:1px solid #4b5563;border-radius:8px;padding:12px;margin-top:14px">';
-html+='<div style="color:#fbbf24;font-weight:700;font-size:.9rem;margin-bottom:8px">🔗 קישורים לפתרון התקלה</div>';
-html+='<div style="display:flex;flex-direction:column;gap:6px">';
-html+='<a href="https://www.youtube.com/results?search_query='+ytQ+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#374151;border-radius:6px;color:#fff;text-decoration:none;font-size:.88rem;transition:.2s" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span>▶️</span><span>סרטוני הדרכה ביוטיוב לקוד '+c+(vCtx?' ('+vCtx+')':'')+'</span></a>';
-html+='<a href="https://www.google.com/search?q='+ggQ+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#374151;border-radius:6px;color:#fff;text-decoration:none;font-size:.88rem;transition:.2s" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span>🔎</span><span>חיפוש Google לפתרונות הקוד</span></a>';
-html+='<a href="https://www.autocodes.com/'+encodeURIComponent(c.toLowerCase())+'.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#374151;border-radius:6px;color:#fff;text-decoration:none;font-size:.88rem;transition:.2s" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span>📘</span><span>AutoCodes — מדריך טכני (אנגלית)</span></a>';
-html+='</div></div>';
-html+='<div style="margin-top:12px;padding:8px 12px;background:#0f172a;border-right:3px solid #6b7280;border-radius:4px;font-size:.82rem;color:#9ca3af">';
-html+='<strong style="color:#cbd5e1">סוג קוד:</strong> '+typeNote;
+let linksHtml='<div style="display:flex;flex-direction:column;gap:8px">';
+linksHtml+='<a href="https://www.youtube.com/results?search_query='+ytQ+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:#374151;border-radius:8px;color:#fff;text-decoration:none;font-size:.92rem;transition:.2s;border:1px solid #4b5563" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span style="font-size:1.2rem">▶️</span><span>סרטוני הדרכה ביוטיוב לקוד '+c+(vCtx?' ('+vCtx+')':'')+'</span></a>';
+linksHtml+='<a href="https://www.google.com/search?q='+ggQ+'" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:#374151;border-radius:8px;color:#fff;text-decoration:none;font-size:.92rem;transition:.2s;border:1px solid #4b5563" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span style="font-size:1.2rem">🔎</span><span>חיפוש Google לפתרונות הקוד</span></a>';
+linksHtml+='<a href="https://www.autocodes.com/'+encodeURIComponent(c.toLowerCase())+'.html" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:#374151;border-radius:8px;color:#fff;text-decoration:none;font-size:.92rem;transition:.2s;border:1px solid #4b5563" onmouseover="this.style.background=\'#4b5563\'" onmouseout="this.style.background=\'#374151\'"><span style="font-size:1.2rem">📘</span><span>AutoCodes — מדריך טכני מלא (אנגלית)</span></a>';
+linksHtml+='</div>';
+html+=section('🔗 קישורים לפתרון התקלה',linksHtml);
+html+='<div style="padding:10px 14px;background:#0f172a;border-right:4px solid #6b7280;border-radius:6px;font-size:.85rem;color:#cbd5e1;line-height:1.5">';
+html+='<strong style="color:#fbbf24">הערה לסוג הקוד:</strong> '+typeNote;
 html+='</div>';
 html+='</div>';
 container.innerHTML=html;
