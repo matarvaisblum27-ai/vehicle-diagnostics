@@ -305,19 +305,18 @@ const SYMPTOMS = {
 };
 
 // ── Init ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+let DB_PROMISE = null;
+function loadDB(){
+  if(DB_PROMISE) return DB_PROMISE;
+  DB_PROMISE = fetch('/vehicle_db.json').then(r=>r.json()).then(d=>{DB=d;return d;});
+  return DB_PROMISE;
+}
+document.addEventListener('DOMContentLoaded', () => {
   renderSteps();
   document.addEventListener('click', e => { if(!e.target.closest('.acw')) $('ac-list').classList.add('hid'); });
-  // Load DB
-  $('loading').classList.remove('hid');
-  try {
-    const r = await fetch('/vehicle_db.json');
-    DB = await r.json();
-    populateMakes();
-    $('loading').classList.add('hid');
-  } catch(e) {
-    $('loading').innerHTML = '<div class="alert alert-e">שגיאה בטעינת מסד נתונים: ' + e.message + '</div>';
-  }
+  // Lazy-load vehicle DB in background (non-blocking)
+  loadDB().then(()=>{ if(S.mode==='manual') populateMakes(); }).catch(e=>console.error('DB load error:',e));
+  $('loading').classList.add('hid');
 });
 
 const $ = id => document.getElementById(id);
@@ -340,6 +339,11 @@ function switchMode(m){
   $('manual-mode').classList.toggle('hid',m!=='manual');
   document.querySelectorAll('.tabs .tab').forEach((t,i)=>t.classList.toggle('on',i===(m==='plate'?0:1)));
   chk1();
+  // If switching to manual, ensure DB is loaded then populate
+  if(m==='manual' && !DB){
+    const sm=$('s-make'); if(sm) sm.innerHTML='<option value="">טוען מסד נתונים...</option>';
+    loadDB().then(()=>{ if(sm) sm.innerHTML='<option value="">בחר יצרן...</option>'; populateMakes(); });
+  }
 }
 function fmtPlate(el){
   let v=el.value.replace(/\D/g,'');if(v.length>8)v=v.slice(0,8);
@@ -349,9 +353,23 @@ function fmtPlate(el){
 async function lookupPlate(){
   const p=$('plate-num').value.replace(/\D/g,'');if(p.length<5)return;
   const b=$('btn-lu');b.disabled=true;b.textContent='מחפש...';
+  // Ensure DB starts loading in background (needed for known issues check)
+  loadDB();
   try{
-    const r=await fetch('/api/license-plate?plate='+p);
-    const d=await r.json();
+    // Check localStorage cache first (vehicle data rarely changes)
+    let d=null;
+    try{
+      const cached=localStorage.getItem('plate_'+p);
+      if(cached){
+        const obj=JSON.parse(cached);
+        if(Date.now()-obj.t < 7*24*60*60*1000) d=obj.d; // 7 days
+      }
+    }catch(e){}
+    if(!d){
+      const r=await fetch('/api/license-plate?plate='+p);
+      d=await r.json();
+      if(!d.error){ try{ localStorage.setItem('plate_'+p,JSON.stringify({t:Date.now(),d})); }catch(e){} }
+    }
     if(d.error){
       $('plate-res').innerHTML='<div class="alert alert-e">'+d.error+'</div>';
       $('plate-res').classList.remove('hid');S.vehicle=null;chk1();return;

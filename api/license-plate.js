@@ -2,10 +2,11 @@
 // Endpoint: /api/license-plate?plate=1234567
 
 module.exports = async function handler(req, res) {
-  // CORS headers
+  // CORS + cache headers (vehicle data is stable — cache aggressively at edge)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=86400');
 
   const { plate } = req.query;
   if (!plate) {
@@ -80,36 +81,21 @@ module.exports = async function handler(req, res) {
   };
 
   try {
-    // Try 3 methods: filters (int), filters (string), q (full-text)
     let records = [];
     const plateInt = parseInt(plateClean, 10);
 
-    // Method 1: filters with integer
+    // Method 1 (primary): filters with integer — usually succeeds
     const url1 = `${BASE_URL}?resource_id=${RESOURCE_ID}&filters=${encodeURIComponent(JSON.stringify({ mispar_rechev: plateInt }))}&limit=1`;
-    console.log('[data.gov.il] Trying:', url1);
-
-    let resp = await fetch(url1, { signal: AbortSignal.timeout(12000) });
+    let resp = await fetch(url1, { signal: AbortSignal.timeout(6000) });
     if (resp.ok) {
       const data = await resp.json();
       records = data?.result?.records || [];
     }
 
-    // Method 2: filters with string
-    if (!records.length) {
-      const url2 = `${BASE_URL}?resource_id=${RESOURCE_ID}&filters=${encodeURIComponent(JSON.stringify({ mispar_rechev: plateClean }))}&limit=1`;
-      console.log('[data.gov.il] Fallback string:', url2);
-      resp = await fetch(url2, { signal: AbortSignal.timeout(12000) });
-      if (resp.ok) {
-        const data = await resp.json();
-        records = data?.result?.records || [];
-      }
-    }
-
-    // Method 3: q full-text search
+    // Fallback only if primary returned nothing — use q full-text
     if (!records.length) {
       const url3 = `${BASE_URL}?resource_id=${RESOURCE_ID}&q=${plateClean}&limit=5`;
-      console.log('[data.gov.il] Fallback q:', url3);
-      resp = await fetch(url3, { signal: AbortSignal.timeout(12000) });
+      resp = await fetch(url3, { signal: AbortSignal.timeout(6000) });
       if (resp.ok) {
         const data = await resp.json();
         const allRecords = data?.result?.records || [];
@@ -160,7 +146,7 @@ module.exports = async function handler(req, res) {
         const SPECS_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';
         const sFilters = { degem_cd: rec.degem_cd, tozeret_cd: rec.tozeret_cd };
         const sUrl = `${BASE_URL}?resource_id=${SPECS_RESOURCE}&filters=${encodeURIComponent(JSON.stringify(sFilters))}&limit=1`;
-        const sResp = await fetch(sUrl, { signal: AbortSignal.timeout(8000) });
+        const sResp = await fetch(sUrl, { signal: AbortSignal.timeout(4000) });
         if (sResp.ok) {
           const sData = await sResp.json();
           const spec = sData?.result?.records?.[0];
