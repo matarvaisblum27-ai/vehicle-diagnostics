@@ -81,9 +81,40 @@ input:focus,select:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3
 .crf{height:100%;background:linear-gradient(90deg,var(--grn),var(--yel),var(--red));border-radius:4px}
 .smr{margin-top:24px;padding:20px;background:var(--g50);border-radius:10px;border:1px solid var(--g200)}
 .smr td{padding:6px 0}.smr .lbl{font-weight:600;width:120px}
+.dtc-sec{margin-top:28px;padding:24px;background:linear-gradient(135deg,#1f2937,#111827);border-radius:12px;border:2px solid #374151;color:#fff}
+.dtc-sec .ct{color:#fff;font-size:1.25rem;margin-bottom:16px}
+.dtc-input-row{display:flex;gap:12px;margin-bottom:16px;align-items:flex-end}
+.dtc-input{flex:1;padding:12px 14px;border:1.5px solid #4b5563;border-radius:8px;font-size:1rem;font-family:monospace;font-weight:600;text-transform:uppercase;background:#2d3748;color:#fff;direction:ltr;letter-spacing:2px}
+.dtc-input:focus{outline:none;border-color:var(--pri);background:#3d4758;box-shadow:0 0 0 3px var(--pri-l)}
+.dtc-btn{padding:12px 24px;background:var(--pri);color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;transition:.2s}
+.dtc-btn:hover{background:var(--pri-d)}.dtc-btn:disabled{background:var(--g400);cursor:not-allowed}
+.dtc-result{background:#374151;border-left:4px solid var(--pri);border-radius:8px;padding:16px;margin-bottom:12px;transition:.3s}
+.dtc-result.critical{border-left-color:var(--red)}.dtc-result.high{border-left-color:var(--org)}.dtc-result.medium{border-left-color:var(--yel)}.dtc-result.low{border-left-color:var(--grn)}
+.dtc-code{font-size:1.3rem;font-weight:700;font-family:monospace;color:var(--pri);margin-bottom:6px;direction:ltr}
+.dtc-he{font-size:1.1rem;font-weight:600;color:#e5e7eb;margin-bottom:8px}
+.dtc-sys{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;margin-top:8px}
+.dtc-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:700}
+.dtc-badge.engine{background:var(--org);color:#fff}.dtc-badge.fuel{background:#8b5cf6;color:#fff}.dtc-badge.cooling{background:#06b6d4;color:#fff}.dtc-badge.brakes{background:var(--red);color:#fff}.dtc-badge.transmission{background:#ec4899;color:#fff}.dtc-badge.electronics{background:var(--pri);color:#fff}.dtc-badge.exhaust{background:#6366f1;color:#fff}.dtc-badge.body{background:#14b8a6;color:#fff}.dtc-badge.network{background:#f59e0b;color:#fff}
+.dtc-mech{background:#2d3748;padding:12px;border-radius:6px;margin-bottom:12px;font-size:.95rem;line-height:1.6;color:#d1d5db}
+.dtc-mech strong{color:#fbbf24;display:block;margin-bottom:4px}
+.dtc-fix{margin-top:12px}
+.dtc-fix-title{font-weight:700;color:#fbbf24;margin-bottom:8px;font-size:.95rem}
+.dtc-fix ol{padding-right:20px;margin:0}
+.dtc-fix li{margin-bottom:6px;color:#d1d5db;line-height:1.5}
+.dtc-parts{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+.dtc-part{display:inline-block;padding:4px 10px;background:#2d3748;border:1px solid #4b5563;border-radius:6px;font-size:.85rem;color:#cbd5e1}
+.dtc-search-results{max-height:300px;overflow-y:auto;background:#2d3748;border:1px solid #4b5563;border-radius:8px;margin-bottom:12px}
+.dtc-search-item{padding:10px 12px;border-bottom:1px solid #4b5563;cursor:pointer;transition:.2s;display:flex;justify-content:space-between;align-items:center}
+.dtc-search-item:hover{background:#3d4758}
+.dtc-search-item:last-child{border-bottom:none}
+.dtc-search-code{font-family:monospace;font-weight:700;color:var(--pri)}
+.dtc-loading{color:#9ca3af;text-align:center;padding:12px;font-size:.9rem}
+.dtc-error{background:#7f1d1d;border:1px solid var(--red);color:#fecaca;padding:12px;border-radius:6px;margin-bottom:12px}
+.dtc-clickable{color:var(--pri);text-decoration:underline;cursor:pointer;transition:.2s}
+.dtc-clickable:hover{color:var(--pri-l);text-decoration-thickness:2px}
 .hid{display:none!important}
 .fi{animation:fi .3s ease}@keyframes fi{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:640px){.row{flex-direction:column}.sg{grid-template-columns:repeat(2,1fr)}.sb{flex-direction:column}.steps{gap:2px}.sd{width:36px;height:36px;font-size:.8rem}.sc{width:20px}}
+@media(max-width:640px){.row{flex-direction:column}.sg{grid-template-columns:repeat(2,1fr)}.sb{flex-direction:column}.steps{gap:2px}.sd{width:36px;height:36px;font-size:.8rem}.sc{width:20px}.dtc-input-row{flex-direction:column;align-items:stretch}.dtc-result{padding:12px}}
 </style>
 </head>
 <body>
@@ -695,6 +726,18 @@ function goStep5(){
     h+=`</a>`;
   });
   h+=`</div></div>`;
+
+  // DTC Lookup section
+  h+=`<div class="dtc-sec">`;
+  h+=`<div class="ct">🔍 בדיקת קודי תקלה (DTC)</div>`;
+  h+=`<p style="color:#d1d5db;margin-bottom:16px;font-size:.9rem">הזן קוד תקלה (למשל P0300) או חפש לפי תיאור</p>`;
+  h+=`<div class="dtc-input-row">`;
+  h+=`<input type="text" id="dtc-input-field" class="dtc-input" placeholder="P0300" maxlength="5" autocomplete="off">`;
+  h+=`<button class="dtc-btn" onclick="dtcLookup()">בדוק קוד</button>`;
+  h+=`</div>`;
+  h+=`<div id="dtc-results-container"></div>`;
+  h+=`</div>`;
+
   h+=`<div class="smr"><h4 style="margin-bottom:12px">סיכום אבחון</h4><table style="width:100%;border-collapse:collapse">`;
   h+=`<tr><td class="lbl">רכב:</td><td>${s.vehicle} ${S.vType?FUEL_LABELS[S.vType.fuel]:''}</td></tr>`;
   h+=`<tr><td class="lbl">תסמין:</td><td>${s.issue}</td></tr>`;
@@ -1281,6 +1324,71 @@ function buildSopTree(sys, symptomId, vType) {
   return SOP[symptomId] || {question:'האם הבעיה קבועה (כל הזמן)?',
     yes:{diagnosis:'תקלה קבועה — פנה למוסך',urgency:'high',solution:'בעיה שלא נעלמת דורשת בדיקה מקצועית.',parts:[],repairSteps:['1. תעד מה הבעיה','2. צלם/הקלט אם אפשר','3. פנה למוסך','4. שתף את האבחון']},
     no:{diagnosis:'תקלה לסירוגין — תעד ועקוב',urgency:'medium',solution:'תעד מתי זה קורה (חם/קר, נסיעה/עצירה). תעזור למכונאי.',parts:[],repairSteps:['1. רשום מתי קורה','2. רשום באיזה תנאים','3. צלם אם אפשר','4. פנה למוסך עם המידע']}};
+}
+
+// ── DTC (Diagnostic Trouble Code) Lookup Functions ──────────────────────────
+async function dtcLookup(){
+  const input=document.getElementById('dtc-input-field');
+  const code=(input.value||'').trim().toUpperCase();
+  const container=document.getElementById('dtc-results-container');
+  if(!code){container.innerHTML='<div class="dtc-error">הזן קוד תקלה או חיפוש</div>';return;}
+  container.innerHTML='<div class="dtc-loading">טוען...</div>';
+  try{
+    const resp=await fetch(`/api/dtc-lookup?code=${encodeURIComponent(code)}`);
+    const data=await resp.json();
+    if(resp.ok){
+      if(data.code){displayDtcResult(data,container);}
+      else if(data.results&&data.results.length){displayDtcSearchResults(data.results,container);}
+      else{container.innerHTML='<div class="dtc-error">'+data.error+'</div>';}
+    }else{container.innerHTML='<div class="dtc-error">'+(data.error||'שגיאה בחיפוש')+'</div>';}
+  }catch(e){
+    console.error('[dtc-lookup]',e);
+    container.innerHTML='<div class="dtc-error">שגיאת רשת: '+e.message+'</div>';
+  }
+}
+function displayDtcResult(data,container){
+  let html='';
+  const urg=data.urgency||'medium';
+  html+='<div class="dtc-result '+urg+'">';
+  html+='<div class="dtc-code">'+data.code+'</div>';
+  html+='<div class="dtc-he">'+data.he+'</div>';
+  html+='<div style="color:#9ca3af;font-size:.85rem;margin-bottom:8px">'+data.en+'</div>';
+  html+='<div class="dtc-sys">';
+  const sysIcon={'fuel':'⛽','engine':'🔧','cooling':'❄️','transmission':'⚙️','exhaust':'💨','brakes':'🛑','electronics':'📟','body':'📦','network':'📡'};
+  html+='<span class="dtc-badge '+data.system+'">'+(sysIcon[data.system]||'•')+' '+data.system+'</span>';
+  html+='<span class="ub '+urg+'">'+URG_HE[urg]+'</span>';
+  html+='</div>';
+  if(data.mechanic){
+    html+='<div class="dtc-mech"><strong>הסבר למוסכניק:</strong>'+data.mechanic+'</div>';
+  }
+  if(data.fix&&data.fix.length){
+    html+='<div class="dtc-fix"><div class="dtc-fix-title">📋 שלבי טיפול:</div><ol class="dtc-fix">';
+    data.fix.forEach(f=>{html+='<li>'+f+'</li>';});
+    html+='</ol></div>';
+  }
+  if(data.parts&&data.parts.length){
+    html+='<div class="dtc-parts"><strong style="color:#fbbf24;font-size:.9rem;display:block;margin-bottom:6px">חלקים:</strong>';
+    data.parts.forEach(p=>{html+='<span class="dtc-part">'+p+'</span>';});
+    html+='</div>';
+  }
+  html+='</div>';
+  container.innerHTML=html;
+}
+function displayDtcSearchResults(results,container){
+  let html='<div style="color:#d1d5db;margin-bottom:8px;font-size:.9rem">'+results.length+' קודים דומים:</div>';
+  html+='<div class="dtc-search-results">';
+  results.forEach(r=>{
+    html+='<div class="dtc-search-item" onclick="dtcLookupExact(\''+r.code+'\')">';
+    html+='<div><div class="dtc-search-code">'+r.code+'</div><div style="color:#cbd5e1;font-size:.85rem">'+r.he+'</div></div>';
+    html+='<span class="ub '+r.urgency+'">'+URG_HE[r.urgency]+'</span>';
+    html+='</div>';
+  });
+  html+='</div>';
+  container.innerHTML=html;
+}
+function dtcLookupExact(code){
+  document.getElementById('dtc-input-field').value=code;
+  dtcLookup();
 }
 </script>
 </body>
