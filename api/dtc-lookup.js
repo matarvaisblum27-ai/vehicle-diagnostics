@@ -48,7 +48,7 @@ module.exports = async function handler(req, res) {
   let dtcDb = {};
   try {
     // In Vercel, we can require JSON directly
-    dtcDb = require('../public/dtc_db.json');
+    dtcDb = require('../data/dtc_db.json');
   } catch (err) {
     console.error('[dtc-lookup] Failed to load DTC database:', err.message);
     return res.status(500).json({ error: 'לא ניתן לטעון את מסד נתוני הקודים' });
